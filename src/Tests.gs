@@ -26,7 +26,7 @@ function testSinhSoHopDong_() {
   rejects_(() => nextSequence_('HD', 2026, [], '9999'), 'Hết dải số');
 }
 function runAllTests() {
-  const tests = [testDocSoThanhChu_, testSinhSoHopDong_, testWorkflow_];
+  const tests = [testDocSoThanhChu_, testSinhSoHopDong_, testWorkflow_, testReminder_, testValidation_];
   tests.forEach(fn => { fn(); console.log('Đạt ' + fn.name); });
   return tests.length;
 }
@@ -40,4 +40,32 @@ function testWorkflow_() {
   checkTransition_(ST.approved, ST.expired, false, true);
   rejects_(() => checkTransition_(ST.signed, ST.expired, true, false), 'Hết hạn thủ công');
   equal_(JSON.stringify(coreSpans_([5, 1, 2, 4])), JSON.stringify([{start: 1, width: 2}, {start: 4, width: 2}]), 'Cột bị di chuyển');
+}
+
+function testReminder_() {
+  const headers = SCHEMA[TAB.contracts].slice().reverse();
+  const map = headerMap_(headers, TAB.contracts);
+  const today = dayNumber_(new Date('2026-01-01T17:05:00Z'));
+  function row(status, end) {
+    const data = {So_HD: 'A', Trang_Thai: status, Ngay_Het_Han: new Date(end)};
+    return headers.map(k => data[k] || '');
+  }
+  const r = scanRows_([
+    row(ST.signed, '2026-01-01T16:59:00Z'), row(ST.approved, '2026-01-09T01:00:00Z'),
+    row(ST.void, '2026-01-09T00:00:00Z'), row(ST.approved, '2026-01-02T13:00:00Z'),
+    row(ST.draft, '2025-10-01'), row(ST.pending, '2025-10-01')
+  ], map, today, reminderDays_('30,15,7'));
+  equal_(r.expired.length, 1, 'Chỉ quá hạn sau ngày cuối');
+  equal_(r.expired[0].row, 2, 'Dòng hết hạn');
+  equal_(r.due.length, 1, 'Bỏ qua hợp đồng hủy');
+  equal_(r.due[0].days, 7, 'Ngày lịch Việt Nam');
+  rejects_(() => reminderDays_('7,x'), 'Cấu hình mốc sai');
+}
+function testValidation_() {
+  const row = {Loai_HD: 'Dịch vụ', Ma_KH: '01', Gia_Tri: 100, Ngay_Hieu_Luc: new Date(2026, 0, 1), Ngay_Het_Han: new Date(2026, 0, 2)};
+  validateContract_(row);
+  ['Loai_HD', 'Ma_KH', 'Gia_Tri', 'Ngay_Hieu_Luc', 'Ngay_Het_Han'].forEach(k => {
+    rejects_(() => validateContract_({...row, [k]: ''}), 'Thiếu ' + k);
+  });
+  rejects_(() => validateContract_({...row, Ngay_Het_Han: row.Ngay_Hieu_Luc}), 'Trùng ngày');
 }
