@@ -26,7 +26,18 @@ function testSinhSoHopDong_() {
   rejects_(() => nextSequence_('HD', 2026, [], '9999'), 'Hết dải số');
 }
 function runAllTests() {
-  const tests = [testDocSoThanhChu_, testSinhSoHopDong_];
+  const tests = [testDocSoThanhChu_, testSinhSoHopDong_, testWorkflow_];
   tests.forEach(fn => { fn(); console.log('Đạt ' + fn.name); });
   return tests.length;
+}
+
+function testWorkflow_() {
+  const cfg = {NGUOI_DUYET: 'an@example.com, B@example.com'};
+  equal_(isApprover_('b@example.com', cfg), true, 'Email người duyệt');
+  rejects_(() => checkTransition_(ST.pending, ST.approved, false, false), 'Người ngoài duyệt');
+  rejects_(() => checkTransition_(ST.draft, ST.signed, true, false), 'Bỏ qua duyệt');
+  checkTransition_(ST.pending, ST.approved, true, false);
+  checkTransition_(ST.approved, ST.expired, false, true);
+  rejects_(() => checkTransition_(ST.signed, ST.expired, true, false), 'Hết hạn thủ công');
+  equal_(JSON.stringify(coreSpans_([5, 1, 2, 4])), JSON.stringify([{start: 1, width: 2}, {start: 4, width: 2}]), 'Cột bị di chuyển');
 }
