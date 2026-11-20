@@ -60,6 +60,10 @@ function folderOfDoc_(url) {
 
 function createContract_(ctx) {
   const row = ctx.data;
+  if (row.So_HD) {
+    locateContract_(ctx.sheet, ctx.map, row.So_HD);
+    checkFileIdle_(ctx);
+  }
   if (row.Link_PDF) throw new Error('Dòng này đã có PDF. Hãy dùng Tạo lại PDF.');
   if (row.Trang_Thai && row.Trang_Thai !== ST.draft) throw new Error('Chỉ tạo hợp đồng trên dòng nháp.');
   if (row.Link_Docs && row.So_HD) return regeneratePdf_(ctx);
@@ -79,25 +83,69 @@ function createContract_(ctx) {
     setField_(ctx, 'So_HD', sinhSoHopDong_(prefix, year, ctx.sheet));
     SpreadsheetApp.flush();
   }
-  setField_(ctx, 'Ten_KH', String(kh.Ten_Cong_Ty).trim());
+  const nameCell = ctx.sheet.getRange(ctx.row, ctx.map.Ten_KH);
+  const customerName = String(kh.Ten_Cong_Ty).trim();
+  if (nameCell.getFormula()) row.Ten_KH = customerName;
+  else setField_(ctx, 'Ten_KH', customerName);
   setField_(ctx, 'Gia_Tri_Bang_Chu', docSoThanhChu(row.Gia_Tri));
   if (!row.Ngay_Tao) setField_(ctx, 'Ngay_Tao', new Date());
   if (!row.Nguoi_Tao) setField_(ctx, 'Nguoi_Tao', email);
   setField_(ctx, 'Trang_Thai', ST.draft);
   const name = row.So_HD + ' - ' + row.Ten_KH;
-  const pdf = fillTemplateAndExportPdf_(id, folder, name, placeholders_(row, kh, cfg), url => {
-    setField_(ctx, 'Link_Docs', url);
-    SpreadsheetApp.flush();
+  const map = placeholders_(row, kh, cfg);
+  reserveFileJob_(ctx);
+  return () => {
+    const pdf = fillTemplateAndExportPdf_(id, folder, name, map, url => linkFile_(ctx, 'Link_Docs', url));
+    linkFile_(ctx, 'Link_PDF', pdf.getUrl());
+    return 'Đã tạo Docs và PDF cho ' + row.So_HD;
+  };
+}
+
+function fileJobKey_(ctx) { return 'xuat/' + ctx.data.So_HD; }
+
+function checkFileIdle_(ctx) {
+  const expiry = PropertiesService.getScriptProperties().getProperty(fileJobKey_(ctx));
+  if (Number(expiry) > Date.now()) throw new Error('Hợp đồng này đang được xuất tệp. Hãy đợi tác vụ hoàn tất.');
+}
+
+function reserveFileJob_(ctx) {
+  checkFileIdle_(ctx);
+  // Mỗi lượt chạy Apps Script tối đa 6 phút. Sau khi bị dừng cưỡng bức, có thể thử lại.
+  PropertiesService.getScriptProperties().setProperty(fileJobKey_(ctx), String(Date.now() + 7 * 60000));
+}
+
+function releaseFileJob_(ctx) {
+  PropertiesService.getScriptProperties().deleteProperty(fileJobKey_(ctx));
+}
+
+// Tra lại vị trí nếu bảng đã được sắp xếp khi Drive đang xử lý.
+function locateContract_(sheet, map, number) {
+  const numbers = sheet.getRange(2, map.So_HD, sheet.getLastRow() - 1, 1);
+  const matches = numbers.createTextFinder(String(number)).matchEntireCell(true).matchCase(true).findAll();
+  if (matches.length !== 1) throw new Error('Cần có đúng một dòng mang số hợp đồng ' + number);
+  return matches[0].getRow();
+}
+
+function linkFile_(ctx, key, url) {
+  withLock_(() => {
+    const sheet = ctx.sheet;
+    const map = getHeaderIndexMap_(sheet);
+    try {
+      const row = locateContract_(sheet, map, ctx.data.So_HD);
+      setField_({...ctx, row, map}, key, url);
+    } catch (err) { throw new Error(err.message + '. Tệp đã lưu tại ' + url); }
   });
-  setField_(ctx, 'Link_PDF', pdf.getUrl());
-  return 'Đã tạo Docs và PDF cho ' + row.So_HD;
 }
 
 function regeneratePdf_(ctx) {
   const row = ctx.data;
   if (!row.So_HD || !row.Link_Docs) throw new Error('Cần có số hợp đồng và bản Docs để tạo lại PDF.');
   const file = docFile_(row.Link_Docs);
-  const pdf = exportPdf_(file, folderOfDoc_(row.Link_Docs), file.getName());
-  setField_(ctx, 'Link_PDF', pdf.getUrl());
-  return 'Đã xuất PDF từ bản Docs của ' + row.So_HD;
+  const folder = folderOfDoc_(row.Link_Docs);
+  reserveFileJob_(ctx);
+  return () => {
+    const pdf = exportPdf_(file, folder, file.getName());
+    linkFile_(ctx, 'Link_PDF', pdf.getUrl());
+    return 'Đã xuất PDF từ bản Docs của ' + row.So_HD;
+  };
 }

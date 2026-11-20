@@ -1,11 +1,3 @@
-const TRANSITIONS = {
-  [ST.draft]: [ST.pending, ST.void],
-  [ST.pending]: [ST.approved, ST.draft, ST.void],
-  [ST.approved]: [ST.signed, ST.void, ST.expired],
-  [ST.signed]: [ST.expired],
-  [ST.expired]: [], [ST.void]: []
-};
-
 function isApprover_(email, cfg) {
   return emailList_((cfg || getConfig()).NGUOI_DUYET).includes(String(email).trim().toLowerCase());
 }
@@ -21,6 +13,7 @@ function chuyenTrangThai_(rowIdx, targetStatus, context) {
   const ctx = context || rowAt_(sheet_(TAB.contracts), rowIdx);
   const row = ctx.data;
   if (!row.So_HD) throw new Error('Hãy tạo hợp đồng trước khi chuyển trạng thái.');
+  checkFileIdle_(ctx);
   const cfg = getConfig();
   const actor = activeEmail_();
   const from = row.Trang_Thai || ST.draft;
@@ -29,7 +22,11 @@ function chuyenTrangThai_(rowIdx, targetStatus, context) {
     validateContract_(row);
     if (!row.Link_Docs || !row.Link_PDF) throw new Error('Hợp đồng cần có đủ liên kết Docs và PDF.');
   }
-  if (targetStatus === ST.approved) khoaDongHopDong_(ctx.sheet, rowIdx, ctx, cfg, actor);
+  if (targetStatus === ST.approved) {
+    // Chốt tên tra cứu để các thay đổi danh mục về sau không làm đổi bản đã duyệt.
+    if (ctx.sheet.getRange(rowIdx, ctx.map.Ten_KH).getFormula()) setField_(ctx, 'Ten_KH', row.Ten_KH);
+    khoaDongHopDong_(ctx.sheet, rowIdx, ctx, cfg, actor);
+  }
   setField_(ctx, 'Trang_Thai', targetStatus);
   return row.So_HD + ' chuyển từ ' + from + ' sang ' + targetStatus + '.';
 }

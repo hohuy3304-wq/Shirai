@@ -49,12 +49,17 @@ function runAction_(name, fn, options) {
   let ctx;
   let result;
   try {
-    result = withLock_(() => {
+    // Chuẩn bị và cấp số dưới khóa; xuất file của hai hợp đồng có thể chạy song song.
+    const prepared = withLock_(() => {
       if (options.row) ctx = activeRow_();
-      const msg = fn(ctx) || 'Đã hoàn tất.';
-      appendLog_(name, ctx && ctx.data.So_HD, msg);
-      return msg;
+      return fn(ctx);
     });
+    if (typeof prepared === 'function') {
+      try { result = prepared(); }
+      finally { withLock_(() => releaseFileJob_(ctx)); }
+    } else result = prepared;
+    result = result || 'Đã hoàn tất.';
+    appendLog_(name, ctx && ctx.data.So_HD, result);
   } catch (err) {
     const detail = 'Lỗi khi ' + name.toLowerCase() + '. ' + err.message;
     try { appendLog_(name, ctx && ctx.data.So_HD, detail); }
@@ -63,7 +68,8 @@ function runAction_(name, fn, options) {
     showAlert_(detail);
     return;
   }
-  if (options.menu) showAlert_(result);
+  if (options.display) options.display();
+  else if (options.menu) showAlert_(result);
   return result;
 }
 
@@ -71,8 +77,13 @@ function rowMenu_(name, fn) { return runAction_(name, fn, {row: true, menu: true
 function taoHopDongTuDongDangChon() { rowMenu_('Tạo hợp đồng', createContract_); }
 function taoLaiPdfTuDongDangChon() { rowMenu_('Tạo lại PDF', regeneratePdf_); }
 function moThuMuc() {
-  rowMenu_('Mở thư mục', ctx => {
+  let url;
+  runAction_('Mở thư mục', ctx => {
     const folder = ctx.data.Link_Docs ? folderOfDoc_(ctx.data.Link_Docs) : destination_(getTemplateInfo_(ctx.data.Loai_HD), getConfig(), currentYear_(), getCustomerInfo_(ctx.data.Ma_KH).Ten_Cong_Ty);
-    return 'Thư mục lưu hợp đồng\n' + folder.getUrl();
-  });
+    url = folder.getUrl();
+    return 'Đã tìm thấy thư mục lưu.';
+  }, {row: true, menu: true, display: () => {
+    const html = HtmlService.createHtmlOutput('<p><a target="_blank" rel="noopener" href="' + html_(url) + '">Mở thư mục trên Google Drive</a></p>').setWidth(320).setHeight(90);
+    SpreadsheetApp.getUi().showModalDialog(html, 'Thư mục hợp đồng');
+  }});
 }

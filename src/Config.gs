@@ -128,3 +128,11 @@ function initSheetStructure() {
     start = i + 1;
   }
 }
+
+const TRANSITIONS = {
+  [ST.draft]: [ST.pending, ST.void],
+  [ST.pending]: [ST.approved, ST.draft, ST.void],
+  [ST.approved]: [ST.signed, ST.void, ST.expired],
+  [ST.signed]: [ST.expired],
+  [ST.expired]: [], [ST.void]: []
+};
