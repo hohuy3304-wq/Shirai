@@ -78,6 +78,6 @@ function fillTemplateAndExportPdf_(templateId, destFolder, fileName, map, saveDo
     copy.setTrashed(true);
     throw err;
   }
-  saveDocLink(copy.getUrl());
+  saveDocLink('https://docs.google.com/document/d/' + copy.getId() + '/edit');
   return exportPdf_(copy, destFolder, fileName);
 }

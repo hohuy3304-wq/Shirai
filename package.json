@@ -2,6 +2,13 @@
   "name": "shirai-hop-dong",
   "version": "1.0.0",
   "private": true,
-  "engines": {"node": ">=22"},
-  "devDependencies": {"@google/clasp": "3.4.1"}
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@google/clasp": "3.4.1"
+  },
+  "scripts": {
+    "test": "node tests/run.cjs"
+  }
 }
