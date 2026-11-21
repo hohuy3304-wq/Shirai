@@ -6,6 +6,7 @@ function placeholders_(row, customer, cfg) {
     if (k === 'Gia_Tri') value = formatCurrencyVnd_(value);
     map[k.toUpperCase()] = value;
   });
+  map.NOI_DUNG_HD = row.Noi_Dung_HD || '';
   SCHEMA[TAB.customers].forEach(k => {
     map[k.toUpperCase()] = customer[k];
     if (ALIAS_KH[k]) map[ALIAS_KH[k]] = customer[k];

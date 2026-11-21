@@ -26,7 +26,12 @@ function sinhSoHopDong_(tienTo, nam, sheet) {
 
 function requiredId_(id, label) {
   id = String(id || '').trim();
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Hãy điền ID thật cho ' + label + '.');
+  const pattern = label === 'ID_Google_Docs_Mau'
+    ? /^https:\/\/docs\.google\.com\/document\/(?:u\/\d+\/)?d\/([\w-]+)(?:[/?#].*)?$/
+    : /^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([\w-]+)(?:[/?#].*)?$/;
+  const match = pattern.exec(id);
+  if (match) return match[1];
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('Hãy điền liên kết Google hoặc ID cho ' + label + '.');
   return id;
 }
 function getOrCreateFolderPath_(rootId, nam, tenKh) {

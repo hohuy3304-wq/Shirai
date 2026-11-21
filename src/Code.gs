@@ -1,5 +1,8 @@
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Hợp đồng')
+    .addItem('Nhập hợp đồng mới…', 'moPhieuHopDong')
+    .addItem('Chuẩn bị mẫu và thư mục', 'chuanBiHopDong')
+    .addSeparator()
     .addItem('Tạo hợp đồng từ dòng đang chọn', 'taoHopDongTuDongDangChon')
     .addItem('Tạo lại PDF', 'taoLaiPdfTuDongDangChon')
     .addItem('Mở thư mục lưu', 'moThuMuc')
@@ -51,7 +54,8 @@ function runAction_(name, fn, options) {
   try {
     // Chuẩn bị và cấp số dưới khóa; xuất file của hai hợp đồng có thể chạy song song.
     const prepared = withLock_(() => {
-      if (options.row) ctx = activeRow_();
+      if (options.context) ctx = options.context();
+      else if (options.row) ctx = activeRow_();
       return fn(ctx);
     });
     if (typeof prepared === 'function') {

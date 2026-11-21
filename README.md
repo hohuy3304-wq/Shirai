@@ -2,6 +2,13 @@
 
 Người phụ trách nhập một dòng hợp đồng trên Google Sheets. Menu **Hợp đồng** cấp số, điền mẫu Google Docs, xuất PDF và ghi hai liên kết vào dòng đó. Người duyệt chốt nội dung trên Sheet. Chủ sở hữu cài lịch tổng hợp các hợp đồng sắp hết hạn qua email.
 
+## Nhập hợp đồng trên một phiếu
+
+1. Sau khi đồng bộ mã, tải lại Sheet. Chủ sở hữu chọn **Hợp đồng → Chuẩn bị mẫu và thư mục** khi cần tạo cấu hình còn thiếu. Lệnh dùng lại cấu hình đã điền, tạo mẫu tham khảo cho loại chưa có mẫu và dùng thư mục **Quản lý hợp đồng Hồng Thiên** trên My Drive khi cần. Có thể dán nguyên link Docs và link thư mục Google Drive vào các ô cấu hình. Điền thông tin pháp nhân Hồng Thiên ở tab **CauHinh** một lần và chia sẻ quyền đọc mẫu, ghi thư mục cho người lập.
+2. Chọn **Hợp đồng → Nhập hợp đồng mới…** ở bất kỳ tab nào. Chọn loại và khách hàng, hoặc chọn **Thêm khách hàng mới…**. Điền nội dung, các ngày, giá trị VND, điều khoản thanh toán, người phụ trách và ghi chú. Email phụ trách và hai ngày đầu được điền gợi ý, có thể sửa trước khi tạo.
+3. Bấm **Tạo hợp đồng và PDF**. Khi thành công, phiếu hiển thị số hợp đồng và hai liên kết. Dòng được lưu trong **HopDong**. Khi xuất lỗi sau bước lưu, dùng **Thử xuất lại** trên cùng phiếu hoặc tiếp tục từ dòng đã lưu. Phiếu bổ sung hai cột ở cuối bảng khi dùng lần đầu: `Noi_Dung_HD` chứa công việc/hàng hóa, `Ma_Phieu` nhận diện lần nhập để tránh tạo trùng khi gửi lại.
+4. Với mẫu Docs riêng đã dùng trước đây, đặt **`{{NOI_DUNG_HD}}`** tại phần mô tả công việc để đưa nội dung mới vào bản xuất. Mẫu tham khảo do chức năng chuẩn bị tạo đã có sẵn khóa này.
+
 ## Cài vào Google Workspace
 
 1. Chủ sở hữu tạo **một Google Sheet mới trên My Drive** và mở **Tiện ích mở rộng → Apps Script** từ chính Sheet đó. Trong **Cài đặt dự án**, sao chép **ID tập lệnh**. ID này khác ID của Sheet, mẫu Docs và thư mục Drive.
@@ -15,7 +22,7 @@ Người phụ trách nhập một dòng hợp đồng trên Google Sheets. Menu
    cp .clasp.json .clasp.local.json
    ```
 
-4. Điền ID tập lệnh thật vào trường `scriptId` của **.clasp.local.json**. Giữ `"rootDir": "src"`. clasp v3 đọc tệp cấu hình từ thư mục hiện hành. Thư mục gốc chứa cấu hình và thư mục `src/` chứa manifest cùng tám tệp `.gs`. Bản cấu hình cục bộ đã được Git bỏ qua. Kiểm tra đúng dự án và danh sách tệp trước khi đẩy lên dự án mới. Khi clasp hỏi cập nhật manifest, kiểm tra ID đích rồi xác nhận.
+4. Điền ID tập lệnh thật vào trường `scriptId` của **.clasp.local.json**. Giữ `"rootDir": "src"`. clasp v3 đọc tệp cấu hình từ thư mục hiện hành. Thư mục gốc chứa cấu hình và thư mục `src/` chứa manifest, các tệp `.gs` và giao diện `Phieu.html`. Bản cấu hình cục bộ đã được Git bỏ qua. Kiểm tra đúng dự án và danh sách tệp trước khi đẩy lên dự án mới. Khi clasp hỏi cập nhật manifest, kiểm tra ID đích rồi xác nhận.
 
    ```sh
    npx clasp -P .clasp.local.json show-file-status

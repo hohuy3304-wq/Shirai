@@ -51,6 +51,7 @@ function khoaDongHopDong_(sheet, rowIdx, ctx, cfg, actor) {
   if (owner) keep.add(owner.getEmail().toLowerCase());
   const operational = ['Trang_Thai', 'Link_Docs', 'Link_PDF', 'Ghi_Chu'];
   const columns = SCHEMA[TAB.contracts].filter(k => !operational.includes(k)).map(k => ctx.map[k]);
+  if (ctx.map.Noi_Dung_HD) columns.push(ctx.map.Noi_Dung_HD);
   const existing = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
   const tag = 'Hợp đồng ' + ctx.data.So_HD;
   coreSpans_(columns).forEach(({start, width}) => {

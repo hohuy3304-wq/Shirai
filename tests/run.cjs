@@ -217,3 +217,54 @@ test('Điền mẫu có tab con, đầu và chân trang rồi đóng Docs trư�
   }
   assert.deepEqual(events, ['closed', 'linked', 'pdf']);
 });
+
+test('Phiếu nhận link Google, kiểm tra ngày và tiền trước khi ghi', () => {
+  const c = runtime();
+  const form = {Loai_HD:'Dịch vụ', Ma_KH:'01', Noi_Dung_HD:'Bảo trì', Dieu_Khoan_Thanh_Toan:'Trả sau',
+    Ngay_Ky:'2026-01-31', Ngay_Hieu_Luc:'2026-02-01', Ngay_Het_Han:'2026-03-01',
+    Gia_Tri:'15.500.000', Nguoi_Phu_Trach:'a@example.com'};
+  assert.equal(c.formData_(form).Gia_Tri, 15500000);
+  assert.throws(() => c.formData_({...form, Ngay_Ky:'2026-02-31'}), /Ngày/);
+  assert.throws(() => c.formData_({...form, Gia_Tri:'15.50'}), /VND/);
+  assert.throws(() => c.formData_({...form, Noi_Dung_HD:' '}), /nội dung/);
+  assert.equal(c.requiredId_('https://docs.google.com/document/d/abc/edit?tab=t.0','ID_Google_Docs_Mau'), 'abc');
+  assert.equal(c.requiredId_('https://drive.google.com/drive/u/0/folders/xyz?usp=sharing','ROOT_FOLDER_ID'), 'xyz');
+  assert.throws(() => c.requiredId_('https://other.com/drive/folders/xyz','ROOT_FOLDER_ID'));
+});
+
+test('Gửi lại cùng phiếu dùng dòng cũ, giữ dòng nhập tay và công thức ngoài bảng', () => {
+  const c = runtime({SpreadsheetApp:{flush() {}}});
+  const headers = Array.from(vm.runInContext('SCHEMA[TAB.contracts].slice().reverse()', c));
+  headers.push('Ngoài bảng', 'Ma_Phieu', 'Noi_Dung_HD');
+  const map = Object.fromEntries(headers.map((k,i)=>[k,i+1]));
+  const rows = [headers, ...Array.from({length:3},()=>Array(headers.length).fill(''))];
+  rows[1][map.Ghi_Chu-1]='Nhập dở';
+  const formulas = rows.map(r=>r.map(()=> ''));
+  formulas[2][map['Ngoài bảng']-1]='=""';
+  formulas[3][map.Ten_KH-1]='=IFERROR(...)';
+  let writes=0, exports=0;
+  const sheet={
+    getName:()=>'HopDong', getLastColumn:()=>headers.length, getMaxRows:()=>4,
+    getDataRange:()=>({getValues:()=>rows,getFormulas:()=>formulas,getNumColumns:()=>headers.length}),
+    getRange(i){return {getValues:()=>[rows[i-1]],setValues:([r])=>{rows[i-1]=r; writes++;}};}
+  };
+  const form={token:'11111111-2222-3333-4444-555555555555', Ma_KH:'A',Loai_HD:'Dịch vụ',Noi_Dung_HD:'Lắp đặt',
+    Ngay_Ky:'2026-01-15',Ngay_Hieu_Luc:'2026-01-15',Ngay_Het_Han:'2026-02-15',Gia_Tri:'1.000',Dieu_Khoan_Thanh_Toan:'Trả sau',Nguoi_Phu_Trach:'a@example.com'};
+  Object.assign(c,{sheet_:()=>sheet,getTemplateInfo_:()=>({ID_Google_Docs_Mau:'doc',Thu_Muc_Luu_ID:'folder'}),
+    getCustomerInfo_:()=>({Ten_Cong_Ty:'Công ty A'}),withLock_:fn=>fn(),appendLog_(){}, releaseFileJob_(){},
+    createContract_:ctx=>()=>{
+      exports++;
+      if (exports===1) throw Error('Mất kết nối');
+      for(const [k,v] of Object.entries({So_HD:'HD-1',Link_Docs:'docs',Link_PDF:'pdf'})){
+        rows[ctx.row-1][map[k]-1]=ctx.data[k]=v;
+      }
+    }});
+  const failure=c.taoTuPhieu(form);
+  assert.equal(failure.saved,true);
+  assert.equal(failure.row,4);
+  assert.equal(c.taoTuPhieu(form).number,'HD-1');
+  assert.equal(c.taoTuPhieu(form).pdf,'pdf');
+  assert.equal(writes,1);
+  assert.equal(exports,2);
+  assert.equal(rows[1][map.Ghi_Chu-1],'Nhập dở');
+});
