@@ -497,3 +497,50 @@ test('Bản Docs chính thức chỉ đọc, chạy lại giữ khóa của ch�
   c.lockApprovedCopy_('archive');c.lockApprovedCopy_('archive');
   assert.equal(writes,1);assert.equal(rules[0].readOnly,true);assert.equal(rules[0].ownerRestricted,true);
 });
+
+test('Gói cập nhật chạy ở thư mục mới và chỉ báo thành công sau khi đọc được doGet từ Google', t => {
+  const os = require('node:os');
+  const { spawnSync } = require('node:child_process');
+  const repo = path.resolve(__dirname, '..');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'Thử cập nhật '));
+  t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+  const launcher = fs.readFileSync(path.join(repo,'Cap-nhat.cmd'),'utf8');
+  assert.match(launcher,/scripts\\cap-nhat\.cjs/i);
+  fs.cpSync(path.join(repo, 'scripts'), path.join(root,'scripts'), {recursive:true});
+  fs.cpSync(path.join(repo, 'src'), path.join(root,'src'), {recursive:true});
+  const cliDir = path.join(root,'node_modules','@google','clasp','build','src');
+  fs.mkdirSync(cliDir,{recursive:true});
+  fs.writeFileSync(path.join(cliDir,'index.js'), `
+    const fs=require('node:fs'), path=require('node:path');
+    const args=process.argv.slice(2);
+    const saved=process.env.TEST_REMOTE;
+    if (args.includes('show-authorized-user')) console.log(JSON.stringify({loggedIn:false}));
+    else if (args.includes('login')) fs.writeFileSync(path.join(saved,'login'),'yes');
+    else if (args.includes('push')) {
+      if (!fs.existsSync(path.join(saved,'login'))) process.exit(1);
+      const config=JSON.parse(fs.readFileSync('.clasp.json'));
+      if (config.scriptId !== 'test_HongThien_Script_12345678') process.exit(2);
+      fs.cpSync('src',path.join(saved,'uploaded'),{recursive:true});
+    } else if (args.includes('pull')) {
+      fs.cpSync(path.join(saved,'uploaded'),'src',{recursive:true});
+      if (process.env.TEST_STALE === 'yes') fs.unlinkSync(path.join('src','WebApp.gs'));
+    } else process.exit(3);
+  `);
+  const start = (answer, stale = '') => spawnSync(process.execPath,[path.join(root,'scripts','cap-nhat.cjs')], {
+    input: answer + '\n', cwd: os.tmpdir(), encoding:'utf8', timeout:20000,
+    env: {...process.env, TEST_REMOTE:root, TEST_STALE:stale}
+  });
+  const editor='https://script.google.com/home/projects/test_HongThien_Script_12345678/edit';
+  const good=start(editor);
+  assert.equal(good.status,0,good.stderr);
+  assert.match(good.stdout,/Đã xác nhận mã mới và hàm doGet/);
+  const incomplete=start(editor,'yes');
+  assert.equal(incomplete.status,1);
+  assert.match(incomplete.stderr,/Google chưa có tệp WebApp.gs/);
+  assert.doesNotMatch(incomplete.stdout,/Đã xác nhận mã mới/);
+  const invalid=start('https://script.google.com/macros/s/example/exec');
+  assert.equal(invalid.status,1);
+  assert.match(invalid.stderr,/ID tập lệnh/);
+  fs.writeFileSync(path.join(root,'.clasp.local.json'),JSON.stringify({scriptId:'test_HongThien_Script_12345678',rootDir:'src'}));
+  assert.equal(start('').status,0);
+});
