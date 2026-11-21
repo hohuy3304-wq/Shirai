@@ -285,7 +285,7 @@ function xuLyHoSo(number, version, action, detail) {
   );
 }
 
-function thietLapHoSo(link, folder, type, reviewers) {
+function thietLapHoSo(link, folder, type, reviewers, seller) {
   return runAction_('Thiết lập hợp đồng', () => {
     const owner = contractBook_().getOwner();
     if (!owner || owner.getEmail().toLowerCase() !== activeEmail_())
@@ -319,6 +319,11 @@ function thietLapHoSo(link, folder, type, reviewers) {
     }
     if (folder) update('ROOT_FOLDER_ID',rootId);
     if (reviewers != null) update('NGUOI_DUYET',emailList_(reviewers).join(', '));
+    if (seller) {
+      for (const key of SELLER) {
+        if (Object.prototype.hasOwnProperty.call(seller,key)) update(key,literalCell_(String(seller[key]).trim()));
+      }
+    }
     return 'Đã lưu thiết lập.';
   },{});
 }

@@ -34,7 +34,7 @@ function withLock_(fn) {
 
 function activeRow_() {
   const sel = SpreadsheetApp.getActiveRange();
-  if (!sel || sel.getSheet().getName() !== TAB.contracts || sel.getRow() < 2 || sel.getNumRows() !== 1)
+  if (!sel || sel.getSheet().getName() !== TAB.contracts || sel.getSheet().getParent().getId() !== contractBook_().getId() || sel.getRow() < 2 || sel.getNumRows() !== 1)
     throw new Error('Hãy chọn một dòng dữ liệu trên tab ' + TAB.contracts + '.');
   return rowAt_(sel.getSheet(), sel.getRow());
 }

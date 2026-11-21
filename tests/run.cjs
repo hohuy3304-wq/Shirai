@@ -429,7 +429,7 @@ test('Web app mở sổ theo ID đã nối, dùng quyền người truy cập v�
     PropertiesService:{getScriptProperties:()=>props},SpreadsheetApp:{getActiveSpreadsheet:()=>active,
       openById:id=>{opened.push(id);if(email==='unknown@example.com')throw Error('Không có quyền');return book;}}
   };
-  assert.match(runtime(services).doGet(),/Kết nối Web App/);
+  assert.match(runtime(services).doGet(),/chờ tài khoản quản trị/);
   props.setProperty('hopdong/spreadsheet','sheet-authorized');
   assert.equal(runtime(services).doGet({parameter:{id:'khac'}}),output);
   assert.deepEqual(opened,['sheet-authorized']);
@@ -437,6 +437,7 @@ test('Web app mở sổ theo ID đã nối, dùng quyền người truy cập v�
   assert.throws(()=>runtime(services).contractBook_(),/người dùng truy cập/);
   email=effective='unknown@example.com';
   assert.throws(()=>runtime(services).doGet(),/Không có quyền/);
+  props.deleteProperty('hopdong/spreadsheet');
   active=book;
   assert.equal(runtime(services).contractBook_(),book);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../src/appsscript.json'),'utf8'));
@@ -514,7 +515,7 @@ test('Gói cập nhật chạy ở thư mục mới và chỉ báo thành công 
     const fs=require('node:fs'), path=require('node:path');
     const args=process.argv.slice(2);
     const saved=process.env.TEST_REMOTE;
-    if (args.includes('show-authorized-user')) console.log(JSON.stringify({loggedIn:false}));
+    if (args.includes('show-authorized-user')) console.log(JSON.stringify({loggedIn:fs.existsSync(path.join(saved,'login')),email:'admin@example.com'}));
     else if (args.includes('login')) fs.writeFileSync(path.join(saved,'login'),'yes');
     else if (args.includes('push')) {
       if (!fs.existsSync(path.join(saved,'login'))) process.exit(1);
@@ -543,4 +544,28 @@ test('Gói cập nhật chạy ở thư mục mới và chỉ báo thành công 
   assert.match(invalid.stderr,/ID tập lệnh/);
   fs.writeFileSync(path.join(root,'.clasp.local.json'),JSON.stringify({scriptId:'test_HongThien_Script_12345678',rootDir:'src'}));
   assert.equal(start('').status,0);
+});
+
+test('Thiết lập ngay trên web: chỉ quản trị viên, dùng lại sổ cũ hoặc tạo mới một lần khi thử lại', () => {
+  const props=properties();
+  const id='sheet-Hong-Thien-1234567890';
+  let email='staff@example.com', owner='boss@example.com', created=0, fail=true;
+  const book={getOwner:()=>({getEmail:()=>owner}),getId:()=>id};
+  const c=runtime({PropertiesService:{getScriptProperties:()=>props},
+    Session:{getActiveUser:()=>({getEmail:()=>email}),getEffectiveUser:()=>({getEmail:()=>email})},
+    SpreadsheetApp:{create:()=>{created++;return book;},openById:key=>{assert.equal(key,id);return book;}},
+    DriveApp:{getFolderById:()=>({getId:()=>'folder'})}, ScriptApp:{getService:()=>({getUrl:()=>'https://example.test/exec'})}});
+  props.setProperty('SETUP_ADMIN_EMAIL',owner);
+  Object.assign(c,{withLock_:fn=>fn(), initSheetStructure(){},getConfig:()=>({ROOT_FOLDER_ID:'folder'}),
+    sheet_:()=>({getRange:()=>({setValue(){}})}),getHeaderIndexMap_:()=>({Value:2}),records_:()=>[{Key:'ROOT_FOLDER_ID'}],
+    connectBook_:ss=>{if(fail)throw Error('thử lại');props.setProperty('hopdong/spreadsheet',ss.getId());}});
+  assert.throws(()=>c.khoiTaoTuWeb('new','',''),/quản trị/);
+  email='boss@example.com';owner='another@example.com';
+  const link='https://docs.google.com/spreadsheets/d/'+id+'/edit';
+  assert.throws(()=>c.khoiTaoTuWeb('existing',link,''),/sở hữu/);
+  owner=email;assert.throws(()=>c.khoiTaoTuWeb('new','',''),/thử lại/);fail=false;
+  assert.match(c.khoiTaoTuWeb('new','',''),/page=settings/);assert.equal(created,1);
+  assert.throws(()=>c.khoiTaoTuWeb('existing',link,''),/đã có sổ/);
+  props.deleteProperty('hopdong/spreadsheet');
+  assert.match(c.khoiTaoTuWeb('existing',link,''),/page=settings/);
 });

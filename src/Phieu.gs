@@ -15,10 +15,12 @@ function layDanhMucPhieu() {
   const isOwner = !!owner && owner.getEmail().toLowerCase() === email;
   const types = templates.map(r => String(r.Loai_HD).trim()).filter(Boolean);
   return {
+    bookUrl: contractBook_().getUrl(),
     frameworkTypes: types.filter(isHdnt_),
     approver: isApprover_(email, cfg),
     owner: isOwner,
     settings: isOwner ? {
+      sellerFields: Object.fromEntries(SELLER.map(k => [k,cfg[k] || ''])),
       reviewers: cfg.NGUOI_DUYET || '', root: cfg.ROOT_FOLDER_ID || '',
       connected: !!PropertiesService.getScriptProperties().getProperty(BOOK_PROPERTY),
       templates: templates.map(r => ({type:String(r.Loai_HD), doc:String(r.ID_Google_Docs_Mau || '')}))

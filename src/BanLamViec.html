@@ -189,6 +189,7 @@
         <strong>Hồng Thiên</strong> <button data-page="create">Tạo hợp đồng</button
         ><button data-page="mine">Hợp đồng của tôi</button><button data-page="review">Chờ tôi duyệt</button
         ><button data-page="approved">Hợp đồng đã duyệt</button><button data-page="settings">Thiết lập</button>
+        <a id="viewBook" hidden target="_blank" rel="noopener" style="display:block;color:white;padding:10px">Xem sổ dữ liệu ↗</a>
       </nav>
       <article>
         <h1 id="title">Hợp đồng</h1>
@@ -272,6 +273,15 @@
           <label>Mẫu Google Docs<input name="doc" placeholder="Dán liên kết Google Docs" /></label>
           <label>Thư mục gốc trên Drive<input name="folder" /></label>
           <label>Email người duyệt (cách nhau bằng dấu phẩy)<textarea name="reviewers"></textarea></label>
+          <fieldset id="sellerFields"><legend>Thông tin bên bán</legend><div class="grid">
+          <label>Tên pháp nhân<input name="TEN_BEN_BAN" /></label>
+          <label>Mã số thuế<input name="MST_BEN_BAN" /></label>
+          <label>Địa chỉ<input name="DIA_CHI_BEN_BAN" /></label>
+          <label>Người đại diện<input name="DAI_DIEN_BEN_BAN" /></label>
+          <label>Chức vụ<input name="CHUC_VU_BEN_BAN" /></label>
+          <label>Điện thoại<input name="SDT_BEN_BAN" /></label>
+          <label>Tài khoản ngân hàng<input name="TAI_KHOAN_BEN_BAN" /></label>
+          </div></fieldset>
           <div class="actions"><button>Lưu thiết lập</button></div>
         </form>
       </article>
@@ -487,6 +497,7 @@
         f.folder.value = config.root;
         f.folder.readOnly = config.connected;
         f.reviewers.value = config.reviewers;
+        for (const input of $('sellerFields').querySelectorAll('input')) input.value = config.sellerFields?.[input.name] || '';
       }
       async function show(mode) {
         if (dirty && !(await ask('Rời phiếu và bỏ các thay đổi chưa lưu?'))) return;
@@ -648,7 +659,8 @@
             $('settings').elements.doc.value,
             $('settings').elements.folder.value,
             $('settings').elements.type.value,
-            $('settings').elements.reviewers.value
+            $('settings').elements.reviewers.value,
+            Object.fromEntries(Array.from($('sellerFields').querySelectorAll('input'), i => [i.name,i.value]))
           );
           catalog = await api('layDanhMucPhieu');
           loadTypes();
@@ -656,6 +668,10 @@
         });
       };
       function loadTypes() {
+        if (catalog.bookUrl) {
+          $('viewBook').href = catalog.bookUrl;
+          $('viewBook').hidden = false;
+        }
         fields.Loai_HD.replaceChildren();
         catalog.types.forEach((t) => fields.Loai_HD.add(new Option(t, t)));
         document.querySelector('[data-page="review"]').hidden = !catalog.approver;

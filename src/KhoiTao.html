@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><base target="_top"><style>
+*{box-sizing:border-box}body{background:#f4f8f7;color:#172c42;font:16px Inter,Arial,sans-serif;margin:0;padding:24px}main{background:white;margin:5vh auto;max-width:590px;padding:26px;border:1px solid #cfdfda;border-radius:12px}h1{font-size:25px}label{display:grid;gap:5px;margin:18px 0}select,input,button{font:inherit;padding:10px;border:1px solid #9bb3ae;border-radius:5px;width:100%}button,a{background:#006c62;color:white;padding:11px;border-radius:5px;cursor:pointer}button:disabled{opacity:.6}p{line-height:1.5}[hidden]{display:none}
+</style></head><body><main><h1>Thiết lập sổ hợp đồng Hồng Thiên</h1>
+<form><label>Sổ dữ liệu<select name="mode"><option value="existing">Dùng Google Sheet hiện có</option><option value="new">Tạo sổ Google Sheets mới</option></select></label>
+<label id="book">Liên kết Google Sheet bạn sở hữu<input name="sheet" required></label>
+<label>Thư mục Drive lưu hồ sơ (tùy chọn)<input name="folder"></label>
+<p>App đưa sổ vào thư mục đã chọn và sao chép các mẫu đang dùng vào đó. Bỏ trống để dùng thư mục đã cấu hình hoặc thư mục Quản lý hợp đồng Hồng Thiên trên My Drive.</p>
+<button>Kết nối và mở sổ</button></form><p id="msg" role="status"></p><a hidden id="open">Tiếp tục vào Web App</a></main>
+<script>
+const form=document.querySelector('form'), fields=form.elements, msg=document.querySelector('#msg');
+fields.mode.onchange=()=>{const existing=fields.mode.value==='existing';document.querySelector('#book').hidden=!existing;fields.sheet.required=existing};
+form.onsubmit=e=>{e.preventDefault();form.querySelector('button').disabled=true;msg.textContent='Đang chuẩn bị sổ dữ liệu…';
+google.script.run.withFailureHandler(err=>{msg.textContent=err.message;form.querySelector('button').disabled=false})
+.withSuccessHandler(url=>{form.hidden=true;msg.textContent='Đã kết nối. Vào Thiết lập để chọn mẫu Docs và điền thông tin bên bán.';const a=document.querySelector('#open');a.href=url;a.hidden=false})
+.khoiTaoTuWeb(fields.mode.value,fields.sheet.value,fields.folder.value)};
+</script></body></html>

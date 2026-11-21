@@ -58,7 +58,7 @@ function runClasp(args, cwd, capture = false) {
   return result.stdout;
 }
 
-function verifySource(remote) {
+function verifySource(remote, source) {
   const normalize = code => code.replace(/\r\n?/g, '\n').trimEnd();
   for (const file of fs.readdirSync(source)) {
     if (file !== 'appsscript.json' && !/\.(?:gs|html)$/.test(file)) continue;
@@ -94,18 +94,23 @@ async function main() {
     fs.cpSync(source, path.join(upload, 'src'), {recursive: true});
     fs.mkdirSync(path.join(check, 'src'));
 
-    const auth = JSON.parse(runClasp(['--json', 'show-authorized-user'], upload, true));
-    if (!auth.loggedIn) runClasp(['login'], upload);
-    else if (auth.email) console.log('Tài khoản Google: ' + auth.email);
+    let auth = JSON.parse(runClasp(['--json', 'show-authorized-user'], upload, true));
+    if (!auth.loggedIn) {
+      runClasp(['login'], upload);
+      auth = JSON.parse(runClasp(['--json','show-authorized-user'], upload, true));
+    }
+    if (!auth.email) throw new Error('Không xác định được email quản trị. Hãy đăng nhập lại clasp bằng tài khoản cài đặt.');
+    fs.writeFileSync(path.join(upload,'src','InstallOwner.gs'),'const INSTALL_OWNER = ' + JSON.stringify(auth.email) + ';\n');
+    if (auth.email) console.log('Tài khoản Google: ' + auth.email);
     console.log('Đang đồng bộ. Nếu clasp hỏi cập nhật manifest của dự án đã chọn, chọn Yes để tiếp tục.');
     runClasp(['push'], upload);
     console.log('Đang đọc lại mã từ Google để kiểm tra Web App…');
     runClasp(['pull'], check);
-    verifySource(path.join(check, 'src'));
+    verifySource(path.join(check, 'src'), path.join(upload, 'src'));
     console.log('Đã xác nhận mã mới và hàm doGet() trong dự án Google.');
     console.log('Mở https://script.google.com/home/projects/' + id + '/edit');
     console.log('Để cập nhật link /exec: Triển khai → Quản lý bản triển khai → bút chì → Phiên bản mới → Triển khai.');
-    console.log('Nếu dùng lần đầu: mở Sheet → Hợp đồng → Chuẩn bị mẫu và thư mục → sau đó chọn Kết nối Web App.');
+    console.log('Nếu dùng lần đầu: mở link /exec bằng tài khoản vừa cài đặt để chọn sổ dữ liệu.');
   } finally {
     fs.rmSync(temp, {recursive: true, force: true});
   }
