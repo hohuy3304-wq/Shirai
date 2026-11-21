@@ -47,6 +47,8 @@ function revision_(r) {
     r.Trang_Thai,
     r.Phien_Trinh,
     r.Link_PDF_Trinh,
+    r.Dau_Tep_Xuat,
+    r.Dau_Trinh,
     r.Link_PDF,
     r.Link_Docs,
     r.Ly_Do_Tra
@@ -61,62 +63,85 @@ function draftKey_(token) {
   return 'nhap/' + token;
 }
 
+function draftRow_(email, token) {
+  draftKey_(token);
+  return records_(TAB.drafts).findIndex(r => r.Nguoi_Tao === email && r.Ma_Phieu === token) + 2;
+}
+
 function readDraft_(form) {
-  const raw = PropertiesService.getUserProperties().getProperty(draftKey_(form.token));
+  const email = activeEmail_();
+  const row = draftRow_(email, form.token);
+  const s = sheet_(TAB.drafts);
+  const raw = row > 1 ? s.getRange(row, getHeaderIndexMap_(s).Du_Lieu).getValue()
+    : PropertiesService.getUserProperties().getProperty(draftKey_(form.token));
   const draft = raw ? JSON.parse(raw) : null;
   if ((draft ? draft.draftVersion : '') !== (form.draftVersion || ''))
     throw new Error('Bản nháp đã thay đổi. Hãy mở lại từ Hợp đồng của tôi.');
-  return draft;
+  return {draft, row};
+}
+
+function removeDraft_(token, row) {
+  // Xóa bản cũ trước để một lỗi dịch vụ không làm hiện lại bản đã xóa.
+  PropertiesService.getUserProperties().deleteProperty(draftKey_(token));
+  if (row > 1) sheet_(TAB.drafts).deleteRow(row);
+}
+
+function myDrafts_(email) {
+  const drafts = new Map();
+  for (const [key,value] of Object.entries(PropertiesService.getUserProperties().getProperties())) {
+    if (key.startsWith('nhap/')) drafts.set(key.slice(5), JSON.parse(value));
+  }
+  for (const r of records_(TAB.drafts)) {
+    if (r.Nguoi_Tao === email) drafts.set(r.Ma_Phieu, JSON.parse(r.Du_Lieu));
+  }
+  return Array.from(drafts.values());
 }
 
 function luuNhapCaNhan(form) {
   let version;
-  runAction_(
-    'Lưu nháp cá nhân',
-    () => {
-      readDraft_(form);
-      if (form.number) {
-        const r = dossierAt_(form.number).data;
-        if (!mine_(r, activeEmail_()) || r.Trang_Thai !== ST.draft) throw new Error('Không thể sửa hồ sơ này.');
-        checkRevision_(r, form.version);
-      }
-      form.draftVersion = Utilities.getUuid();
-      const data = JSON.stringify(form);
-      if (Utilities.newBlob(data).getBytes().length > 8500)
-        throw new Error('Phiếu nháp quá dài. Hãy rút gọn phần diễn giải.');
-      PropertiesService.getUserProperties().setProperty(draftKey_(form.token), data);
-      version = form.draftVersion;
-      return 'Đã lưu bản nháp cá nhân.';
-    },
-    {}
-  );
+  runAction_('Lưu nháp', () => {
+    const {row} = readDraft_(form);
+    const email = activeEmail_();
+    if (form.number) {
+      const r = dossierAt_(form.number).data;
+      if (!mine_(r,email) || r.Trang_Thai !== ST.draft) throw new Error('Không thể sửa hồ sơ này.');
+      checkRevision_(r,form.version);
+    }
+    version = Utilities.getUuid();
+    const data = JSON.stringify({...form, draftVersion:version});
+    if (data.length > 49000) throw new Error('Phiếu quá dài cho một ô trong bảng tính.');
+    const s = sheet_(TAB.drafts), m = getHeaderIndexMap_(s);
+    if (row > 1) s.getRange(row, m.Du_Lieu).setValue(data);
+    else appendRecord_(s,m,{Nguoi_Tao:email, Ma_Phieu:form.token, Du_Lieu:data});
+    PropertiesService.getUserProperties().deleteProperty(draftKey_(form.token));
+    return 'Đã lưu bản nháp vào Sheet.';
+  }, {});
   return version;
 }
 
 function xoaNhapCaNhan(token, draftVersion) {
-  return runAction_(
-    'Xóa bản nháp cá nhân',
-    () => {
-      if (!readDraft_({ token, draftVersion })) throw new Error('Bản nháp không còn tồn tại.');
-      PropertiesService.getUserProperties().deleteProperty(draftKey_(token));
-      return 'Đã xóa bản nháp cá nhân.';
-    },
-    {}
-  );
+  return runAction_('Xóa bản nháp', () => {
+    const {draft, row} = readDraft_({token, draftVersion});
+    if (!draft) throw new Error('Bản nháp không còn tồn tại.');
+    removeDraft_(token,row);
+    return 'Đã xóa bản nháp.';
+  }, {});
 }
 
 function danhSachHoSo(mode) {
   const email = activeEmail_(),
     review = mode === 'review';
   if (review && !isApprover_(email)) throw new Error('Tài khoản của bạn chưa thuộc NGUOI_DUYET.');
-  const local = review
-    ? []
-    : Object.entries(PropertiesService.getUserProperties().getProperties())
-        .filter(([key]) => key.startsWith('nhap/'))
-        .map(([, v]) => JSON.parse(v));
-  const rows = records_(TAB.contracts).filter(
-    (r) => r.So_HD && (review ? r.Trang_Thai === ST.pending : mine_(r, email))
-  );
+  const local = mode === 'mine' ? myDrafts_(email) : [];
+  const rows = records_(TAB.contracts).filter(r => {
+    if (!r.So_HD) return false;
+    if (review) return r.Trang_Thai === ST.pending;
+    if (mode === 'approved') {
+      const archived = !!r.Link_Docs_Da_Duyet || [ST.approved,ST.signed,ST.expired,ST.ended].includes(r.Trang_Thai);
+      return archived && ![ST.draft,ST.pending].includes(r.Trang_Thai) && (mine_(r,email) || r.Nguoi_Duyet === email);
+    }
+    return mine_(r,email);
+  });
   return {
     drafts: local,
     rows: rows
@@ -152,6 +177,8 @@ function danhSachHoSo(mode) {
           reason: String(r.Ly_Do_Tra || ''),
           endedBy: String(r.Can_Cu_Cham_Dut || ''),
           docs: String(r.Link_Docs || ''),
+          approvedDoc: [ST.pending,ST.draft].includes(r.Trang_Thai) ? '' : String(r.Link_Docs_Da_Duyet || ''),
+          approver: String(r.Nguoi_Duyet || ''),
           pdf: String(r.Link_PDF_Trinh || r.Link_PDF || ''),
           edition: Number(r.Phien_Trinh || 0)
         };
@@ -193,9 +220,10 @@ function guiPhieuDeDuyet(form) {
           const current = dossierAt_(row.data.So_HD);
           if (businessHash_(current.data) !== hash || current.data.Trang_Thai !== ST.draft)
             throw new Error('Dữ liệu thay đổi trong lúc xuất. Hãy mở lại hồ sơ và gửi lại.');
+          const draft = readDraft_(form);
           setField_(current, 'Yeu_Cau_Trinh', form.token);
           const msg = chuyenTrangThai_(current.row, ST.pending, current, true);
-          PropertiesService.getUserProperties().deleteProperty(draftKey_(form.token));
+          removeDraft_(form.token,draft.row);
           return msg;
         });
       };
@@ -220,10 +248,18 @@ function xuLyHoSo(number, version, action, detail) {
       const r = ctx.data,
         email = activeEmail_();
       checkRevision_(r, version);
+      if (action === 'sign') {
+        if (r.Trang_Thai !== ST.approved) throw new Error('Cần duyệt hợp đồng trước khi đánh dấu đã ký.');
+        return chuyenTrangThai_(ctx.row, ST.signed, ctx);
+      }
       if (action === 'reviewDate' || action === 'end') {
         if (!isHdnt_(r.Loai_HD) || ![ST.approved, ST.signed].includes(r.Trang_Thai) || !mine_(r, email))
           throw new Error('Chỉ người tạo hoặc phụ trách được cập nhật HĐNT đã duyệt hoặc đã ký.');
-        if (action === 'reviewDate') {
+        if (action === 'sign') {
+        if (r.Trang_Thai !== ST.approved) throw new Error('Cần duyệt hợp đồng trước khi đánh dấu đã ký.');
+        return chuyenTrangThai_(ctx.row, ST.signed, ctx);
+      }
+      if (action === 'reviewDate') {
           const d = dateFromForm_(detail);
           if (dayNumber_(d) <= dayNumber_(new Date()))
             throw new Error('Chọn ngày rà soát tiếp theo trong tương lai.');
@@ -249,38 +285,40 @@ function xuLyHoSo(number, version, action, detail) {
   );
 }
 
-function thietLapHoSo(link, folder) {
-  return runAction_(
-    'Thiết lập HĐNT',
-    () => {
-      const owner = SpreadsheetApp.getActiveSpreadsheet().getOwner();
-      if (!owner || owner.getEmail().toLowerCase() !== activeEmail_())
-        throw new Error('Chỉ chủ sở hữu bảng tính được đổi thiết lập.');
+function thietLapHoSo(link, folder, type, reviewers) {
+  return runAction_('Thiết lập hợp đồng', () => {
+    const owner = contractBook_().getOwner();
+    if (!owner || owner.getEmail().toLowerCase() !== activeEmail_())
+      throw new Error('Chỉ chủ sở hữu bảng tính được đổi thiết lập.');
+    const cfg = getConfig();
+    const central = !!PropertiesService.getScriptProperties().getProperty(BOOK_PROPERTY);
+    const rootId = requiredId_(folder || cfg.ROOT_FOLDER_ID,'ROOT_FOLDER_ID');
+    if (central && rootId !== requiredId_(cfg.ROOT_FOLDER_ID,'ROOT_FOLDER_ID'))
+      throw new Error('Đổi ROOT_FOLDER_ID trong CauHinh rồi kết nối lại Web App từ Sheet.');
+    if (reviewers != null && emailList_(reviewers).some(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)))
+      throw new Error('Danh sách người duyệt cần các địa chỉ email cách nhau bằng dấu phẩy.');
+    const root = DriveApp.getFolderById(rootId);
+    root.getName();
+    if (link) {
+      const templates = records_(TAB.templates);
+      const matches = templates.map((r,i)=>({r,i})).filter(({r}) => type ? r.Loai_HD === type : isHdnt_(r.Loai_HD));
+      if (matches.length !== 1) throw new Error('Hãy chọn một loại hợp đồng duy nhất trong Mau.');
       const id = requiredId_(link, 'ID_Google_Docs_Mau');
       if (DriveApp.getFileById(id).getMimeType() !== MimeType.GOOGLE_DOCS)
-        throw new Error('Hãy chuyển mẫu thành Google Tài liệu trước khi chọn.');
-      let root = '';
-      if (folder) {
-        root = requiredId_(folder, 'ROOT_FOLDER_ID');
-        DriveApp.getFolderById(root).getName();
-      }
-      initSheetStructure();
-      const s = sheet_(TAB.templates),
-        m = getHeaderIndexMap_(s);
-      const types = records_(TAB.templates)
-        .map((r, i) => ({ r, i }))
-        .filter(({ r }) => isHdnt_(r.Loai_HD));
-      if (types.length !== 1)
-        throw new Error('Có nhiều loại HĐNT. Hãy cập nhật mẫu trên dòng tương ứng trong tab Mau.');
-      s.getRange(types[0].i + 2, m.ID_Google_Docs_Mau).setValue(id);
-      if (root) {
-        const cfg = sheet_(TAB.config),
-          cm = getHeaderIndexMap_(cfg);
-        const i = records_(TAB.config).findIndex((r) => r.Key === 'ROOT_FOLDER_ID');
-        cfg.getRange(i + 2, cm.Value).setValue(root);
-      }
-      return 'Đã lưu thiết lập HĐNT.';
-    },
-    {}
-  );
+        throw new Error('Hãy lưu mẫu thành Google Tài liệu trước khi chọn.');
+      const stored = central ? templateInRoot_(id, childFolder_(root,'Mẫu hợp đồng')) : id;
+      const s = sheet_(TAB.templates);
+      s.getRange(matches[0].i+2, getHeaderIndexMap_(s).ID_Google_Docs_Mau).setValue(stored);
+    }
+    const config = sheet_(TAB.config), column = getHeaderIndexMap_(config).Value;
+    const entries = records_(TAB.config);
+    function update(key,value) {
+      const i = entries.findIndex(r => String(r.Key).trim() === key);
+      if (i < 0) throw new Error('Thiếu khóa ' + key + ' trong CauHinh.');
+      config.getRange(i+2,column).setValue(value);
+    }
+    if (folder) update('ROOT_FOLDER_ID',rootId);
+    if (reviewers != null) update('NGUOI_DUYET',emailList_(reviewers).join(', '));
+    return 'Đã lưu thiết lập.';
+  },{});
 }

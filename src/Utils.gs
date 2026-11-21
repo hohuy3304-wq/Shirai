@@ -43,7 +43,7 @@ function escapeRegex_(s) {
 }
 function activeEmail_() {
   const email = Session.getActiveUser().getEmail().trim().toLowerCase();
-  if (!email) throw new Error('Không xác định được người dùng. Hãy mở Sheet bằng tài khoản Workspace của công ty.');
+  if (!email) throw new Error('Không xác định được người dùng. Hãy đăng nhập bằng tài khoản Google được chia sẻ sổ hợp đồng.');
   return email;
 }
 function emailList_(s) {

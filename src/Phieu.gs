@@ -2,22 +2,27 @@ function moPhieuHopDong() { openDesk_('create'); }
 function moHoSoCuaToi() { openDesk_('mine'); }
 function moChoDuyet() { openDesk_('review'); }
 function openDesk_(page) {
-  const template = HtmlService.createTemplateFromFile('BanLamViec');
-  template.startPage = page;
   SpreadsheetApp.getUi().showModalDialog(
-    template.evaluate().setWidth(960).setHeight(670), 'Hồng Thiên · Quản lý hợp đồng'
+    deskPage_(page).setWidth(960).setHeight(670), 'Hồng Thiên · Quản lý hợp đồng'
   );
 }
 
 function layDanhMucPhieu() {
   const cfg = getConfig();
   const email = activeEmail_();
-  const owner = SpreadsheetApp.getActiveSpreadsheet().getOwner();
-  const types = records_(TAB.templates).map(r => String(r.Loai_HD).trim()).filter(Boolean);
+  const owner = contractBook_().getOwner();
+  const templates = records_(TAB.templates);
+  const isOwner = !!owner && owner.getEmail().toLowerCase() === email;
+  const types = templates.map(r => String(r.Loai_HD).trim()).filter(Boolean);
   return {
     frameworkTypes: types.filter(isHdnt_),
     approver: isApprover_(email, cfg),
-    owner: !!owner && owner.getEmail().toLowerCase() === email,
+    owner: isOwner,
+    settings: isOwner ? {
+      reviewers: cfg.NGUOI_DUYET || '', root: cfg.ROOT_FOLDER_ID || '',
+      connected: !!PropertiesService.getScriptProperties().getProperty(BOOK_PROPERTY),
+      templates: templates.map(r => ({type:String(r.Loai_HD), doc:String(r.ID_Google_Docs_Mau || '')}))
+    } : null,
     seller: [cfg.TEN_BEN_BAN, cfg.MST_BEN_BAN, cfg.DIA_CHI_BEN_BAN, cfg.DAI_DIEN_BEN_BAN, cfg.CHUC_VU_BEN_BAN].filter(Boolean).join(' · '),
     today: Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'),
     email,
@@ -116,7 +121,7 @@ function formRow_(form, creator) {
   const fields = formData_({...form, Ma_KH: code});
   const template = getTemplateInfo_(fields.Loai_HD);
   requiredId_(template.ID_Google_Docs_Mau, 'ID_Google_Docs_Mau');
-  requiredId_(template.Thu_Muc_Luu_ID || getConfig().ROOT_FOLDER_ID, template.Thu_Muc_Luu_ID ? 'Thu_Muc_Luu_ID' : 'ROOT_FOLDER_ID');
+  if (!customFolderId_(template)) requiredId_(getConfig().ROOT_FOLDER_ID, 'ROOT_FOLDER_ID');
   const customer = formCustomer_(form, code);
   validateBuyer_(fields.Loai_HD, customer);
   const formulas = range.getFormulas();
@@ -151,7 +156,7 @@ function taoTuPhieu(form) {
 
 function chuanBiHopDong() {
   runAction_('Chuẩn bị mẫu và thư mục', () => {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = contractBook_();
     const owner = ss.getOwner();
     if (!owner || owner.getEmail().toLowerCase() !== activeEmail_()) throw new Error('Chủ sở hữu bảng tính cần chạy bước chuẩn bị.');
     initSheetStructure();
@@ -188,7 +193,7 @@ function chuanBiHopDong() {
       body.appendParagraph('{{NOI_DUNG_HD}}\nThời hạn: {{NGAY_HIEU_LUC}} đến {{NGAY_HET_HAN}}\nGiá trị: {{GIA_TRI}} ({{GIA_TRI_BANG_CHU}})\nThanh toán: {{DIEU_KHOAN_THANH_TOAN}}\nNgười phụ trách: {{NGUOI_PHU_TRACH}}\nGhi chú: {{GHI_CHU}}');
       const id = doc.getId();
       doc.saveAndClose();
-      DriveApp.getFileById(id).moveTo(folder);
+      DriveApp.getFileById(id).moveTo(childFolder_(folder, 'Mẫu hợp đồng'));
       templates.getRange(i+2, map.ID_Google_Docs_Mau).setValue(id);
       SpreadsheetApp.flush();
       created.push(r.Loai_HD);

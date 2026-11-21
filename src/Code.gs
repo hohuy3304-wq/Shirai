@@ -8,11 +8,13 @@ function onOpen() {
     .addItem('Đánh dấu đã ký', 'danhDauDaKy')
     .addItem('Hủy hợp đồng', 'huyHopDong');
   ui.createMenu('Hợp đồng')
+    .addItem('Mở Web App', 'moWebApp')
     .addItem('Tạo hợp đồng…', 'moPhieuHopDong')
     .addItem('Hợp đồng của tôi', 'moHoSoCuaToi')
     .addItem('Chờ tôi duyệt', 'moChoDuyet')
     .addSeparator()
     .addItem('Chuẩn bị mẫu và thư mục', 'chuanBiHopDong')
+    .addItem('Kết nối Web App…', 'ketNoiWebApp')
     .addSeparator()
     .addSubMenu(rowActions)
     .addItem('Quét hết hạn', 'quetHetHan')

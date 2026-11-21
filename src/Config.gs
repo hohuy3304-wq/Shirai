@@ -1,10 +1,11 @@
 const TZ = 'Asia/Ho_Chi_Minh';
-const TAB = {contracts: 'HopDong', customers: 'KhachHang', templates: 'Mau', config: 'CauHinh', log: 'NhatKy'};
+const TAB = {contracts: 'HopDong', customers: 'KhachHang', templates: 'Mau', config: 'CauHinh', log: 'NhatKy', drafts: 'BanNhap'};
 const SCHEMA = {
   [TAB.contracts]: ['So_HD', 'Loai_HD', 'Ma_KH', 'Ten_KH', 'Ngay_Ky', 'Ngay_Hieu_Luc', 'Ngay_Het_Han', 'Gia_Tri', 'Gia_Tri_Bang_Chu', 'Dieu_Khoan_Thanh_Toan', 'Nguoi_Phu_Trach', 'Trang_Thai', 'Link_Docs', 'Link_PDF', 'Ngay_Tao', 'Nguoi_Tao', 'Ghi_Chu'],
   [TAB.customers]: ['Ma_KH', 'Ten_Cong_Ty', 'Dia_Chi', 'MST', 'Nguoi_Dai_Dien', 'Chuc_Vu', 'SDT', 'Email', 'Tai_Khoan_NH'],
   [TAB.templates]: ['Loai_HD', 'ID_Google_Docs_Mau', 'Tien_To_So_HD', 'Thu_Muc_Luu_ID'],
   [TAB.config]: ['Key', 'Value', 'Mo_Ta'],
+  [TAB.drafts]: ['Nguoi_Tao', 'Ma_Phieu', 'Du_Lieu'],
   [TAB.log]: ['Thoi_Gian', 'Nguoi_Dung', 'Hanh_Dong', 'So_HD', 'Ket_Qua']
 };
 const ST = {draft: 'Nháp', pending: 'Chờ duyệt', approved: 'Đã duyệt', signed: 'Đã ký', expired: 'Hết hạn', ended: 'Đã chấm dứt', void: 'Hủy'};
@@ -21,7 +22,7 @@ const DEFAULT_CFG = [
 ];
 
 function sheet_(name) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  const sheet = contractBook_().getSheetByName(name);
   if (!sheet) throw new Error('Thiếu tab ' + name + '. Hãy chạy initSheetStructure.');
   return sheet;
 }
@@ -80,7 +81,7 @@ function appendRecord_(sheet, map, values) {
 }
 
 function initSheetStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = contractBook_();
   ss.setSpreadsheetTimeZone(TZ);
   Object.keys(SCHEMA).forEach(name => {
     const s = ss.getSheetByName(name) || ss.insertSheet(name);

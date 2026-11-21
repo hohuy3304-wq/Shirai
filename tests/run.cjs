@@ -243,7 +243,7 @@ test('Phiếu nhận link Google, kiểm tra ngày và tiền trước khi ghi',
 });
 
 test('Gửi lại cùng phiếu dùng dòng cũ, giữ dòng nhập tay và công thức ngoài bảng', () => {
-  const c = runtime({SpreadsheetApp:{flush() {}}});
+  const c = runtime({SpreadsheetApp:{flush() {}},PropertiesService:{getScriptProperties:properties}});
   const headers = Array.from(vm.runInContext('SCHEMA[TAB.contracts].slice().reverse()', c));
   headers.push('Ngoài bảng', 'Ma_Phieu', 'Noi_Dung_HD');
   const map = Object.fromEntries(headers.map((k,i)=>[k,i+1]));
@@ -300,13 +300,37 @@ test('HĐNT theo đơn hàng, ký theo ủy quyền và rà soát gia hạn', ()
   assert.deepEqual(Array.from(scan.due,r=>r.contract.So_HD),['NT2','NT3']);
 });
 
+function draftTable(c) {
+  const rows = [];
+  const headers = ['Nguoi_Tao','Ma_Phieu','Du_Lieu'];
+  const sheet = {
+    getName: ()=>'BanNhap', getLastColumn: ()=>headers.length,
+    getRange: (r,col)=>({
+      getValues: ()=>[headers],
+      getValue: ()=>rows[r-2][col-1],
+      setValue: v=>{rows[r-2][col-1]=v;}
+    }),
+    getDataRange: ()=>({getValues:()=>[headers,...rows]}),
+    appendRow: values=>rows.push(values),
+    deleteRow: r=>rows.splice(r-2,1)
+  };
+  c.sheet_ = name => {assert.equal(name,'BanNhap');return sheet;};
+  return rows;
+}
+
 test('Nháp riêng từng tài khoản, chống ghi đè và xóa nháp cũ', () => {
   const stores = {a:properties(),b:properties()};
   let actor='a';
   const c=runtime({PropertiesService:{getUserProperties:()=>stores[actor]}});
-  Object.assign(c,{withLock_:f=>f(),appendLog_(){},records_:()=>[],activeEmail_:()=>actor,isApprover_:()=>false});
+  const rows=draftTable(c), read=c.records_;
+  Object.assign(c,{withLock_:f=>f(),appendLog_(){},records_:name=>name==='BanNhap'?read(name):[],activeEmail_:()=>actor,isApprover_:()=>false});
   const initial={token:crypto.randomUUID(),Loai_HD:'HĐNT'};
-  const version=c.luuNhapCaNhan({...initial});
+  const legacy={...initial,draftVersion:'ancien'};
+  stores.a.setProperty('nhap/'+initial.token,JSON.stringify(legacy));
+  assert.equal(c.danhSachHoSo('mine').drafts[0].draftVersion,'ancien');
+  const version=c.luuNhapCaNhan(legacy);
+  assert.equal(rows[0][0],actor);
+  assert.equal(stores.a.getProperty('nhap/'+initial.token),null);
   assert.equal(c.danhSachHoSo('mine').drafts[0].draftVersion,version);
   assert.throws(()=>c.luuNhapCaNhan({...initial}),/thay đổi/);
   const latest=c.luuNhapCaNhan({...initial,draftVersion:version});
@@ -323,18 +347,30 @@ test('Trình, trả về, trình lần hai và duyệt đúng bản PDF khi nhi�
   const store=properties(),logs=[], exported=[];
   const creator='lap@example.com', reviewer='duyet@example.com';
   let actor=creator;
-  const c=runtime({PropertiesService:{getUserProperties:()=>store}});
+  const c=runtime({SpreadsheetApp:{flush(){}},PropertiesService:{getUserProperties:()=>store}});
+  draftTable(c);
+  const read=c.records_,versions={test:'3'}, fileId='approved-doc', folder={getId:()=>'folder'};
+  Object.assign(c,{
+    docFile_:()=>({getId:()=>'test'}),driveVersion_:id=>versions[id],
+    getOrCreateFolderPath_:()=>folder,childFolder_:()=>folder,lockApprovedCopy_(id){assert.equal(id,fileId);},
+    copyNativeDoc_:(id,dir,name,version)=>{
+      assert.equal(id,'test');assert.equal(version,'3');assert.match(name,/Đã duyệt lần 2/);return fileId;
+    }
+  });
   const sheet={getRange:()=>({getFormula:()=>''})};
   const ctx={row:2,map:{},sheet,data:{Trang_Thai:'Nháp',Nguoi_Tao:creator,Loai_HD:'HĐNT',Ma_KH:'K'}};
   Object.assign(c,{
     withLock_:f=>f(),appendLog_:(...args)=>logs.push(args),dossierAt_:()=>ctx,formRow_:()=>ctx,activeEmail_:()=>actor,
-    records_:()=>[ctx.data],getConfig:()=>({NGUOI_DUYET:reviewer}),checkFileIdle_(){},releaseFileJob_(){},
+    records_:name=>name==='BanNhap' ? read(name) : [ctx.data],getConfig:()=>({NGUOI_DUYET:reviewer}),checkFileIdle_(){},releaseFileJob_(){},
     formCustomer_:()=>({Ten_Cong_Ty:'A',MST:'01',Dia_Chi:'HCM',Nguoi_Dai_Dien:'B',Chuc_Vu:'GĐ'}),
     addFields_(){},setField_:(r,k,v)=>{r.data[k]=v;},khoaDongHopDong_(){},
     createContract_(r){
       r.data.So_HD='HDNT-2026-0001';
       return ()=>{
-        exported.push('https://drive.google.com/pdf'+(exported.length+1));
+        const id='pdf'+(exported.length+1);
+        exported.push('https://drive.google.com/file/d/'+id+'/view');
+        versions[id]='1';
+        r.data.Dau_Tep_Xuat=c.digest_(['test','3',id,'1']);
         r.data.Link_Docs='https://docs.google.com/document/d/test/edit';
         r.data.Link_PDF=exported.at(-1);
       };
@@ -368,10 +404,96 @@ test('Trình, trả về, trình lần hai và duyệt đúng bản PDF khi nhi�
   ctx.data.Thay_Doi='thay đổi trực tiếp sau khi trình';
   assert.throws(()=>c.xuLyHoSo(result.number,c.revision_(ctx.data),'approve',''),/Nội dung đã đổi/);
   ctx.data.Thay_Doi=second.Thay_Doi;
+  versions.test='4';
+  assert.throws(()=>c.xuLyHoSo(result.number,c.revision_(ctx.data),'approve',''),/Tệp đã thay đổi/);
+  versions.test='3';
   c.xuLyHoSo(result.number,c.revision_(ctx.data),'approve','');
   assert.equal(ctx.data.Trang_Thai,'Đã duyệt');
+  assert.equal(c.danhSachHoSo('approved').rows[0].approvedDoc,'https://docs.google.com/document/d/approved-doc/edit');
+  assert.equal(ctx.data.Nguoi_Duyet,reviewer);
+  c.xuLyHoSo(result.number,c.revision_(ctx.data),'sign','');
+  assert.equal(ctx.data.Trang_Thai,'Đã ký');
   actor=creator;
   c.xuLyHoSo(result.number,c.revision_(ctx.data),'end','Thông báo chấm dứt số 12');
   assert.equal(ctx.data.Trang_Thai,'Đã chấm dứt');
   assert.equal(ctx.data.Can_Cu_Cham_Dut,'Thông báo chấm dứt số 12');
+});
+
+test('Web app mở sổ theo ID đã nối, dùng quyền người truy cập và giữ được menu Sheet', () => {
+  const props=properties(), book={getName:()=>'Sổ hợp đồng'}, opened=[];
+  let email='nhanvien@example.com',effective=email,active=null;
+  const output={setTitle(){return this;},addMetaTag(){return this;}};
+  const services={
+    HtmlService:{createHtmlOutput:text=>text,createTemplateFromFile:name=>{assert.equal(name,'BanLamViec');return {evaluate:()=>output};}},
+    Session:{getActiveUser:()=>({getEmail:()=>email}),getEffectiveUser:()=>({getEmail:()=>effective})},
+    PropertiesService:{getScriptProperties:()=>props},SpreadsheetApp:{getActiveSpreadsheet:()=>active,
+      openById:id=>{opened.push(id);if(email==='unknown@example.com')throw Error('Không có quyền');return book;}}
+  };
+  assert.match(runtime(services).doGet(),/Kết nối Web App/);
+  props.setProperty('hopdong/spreadsheet','sheet-authorized');
+  assert.equal(runtime(services).doGet({parameter:{id:'khac'}}),output);
+  assert.deepEqual(opened,['sheet-authorized']);
+  effective='owner@example.com';
+  assert.throws(()=>runtime(services).contractBook_(),/người dùng truy cập/);
+  email=effective='unknown@example.com';
+  assert.throws(()=>runtime(services).doGet(),/Không có quyền/);
+  active=book;
+  assert.equal(runtime(services).contractBook_(),book);
+  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../src/appsscript.json'),'utf8'));
+  assert.equal(manifest.webapp.executeAs,'USER_ACCESSING');
+  assert.equal(manifest.webapp.access,'ANYONE');
+  assert.ok(manifest.dependencies.enabledAdvancedServices.some(s=>s.serviceId==='drive' && s.version==='v3'));
+});
+
+test('Xuất PDF lưu dấu phiên bản Drive, tái sử dụng bản sao theo nguồn, đích và phiên bản', () => {
+  let version='8', concurrent=false;
+  const made=[];
+  const c=runtime({MimeType:{PDF:'pdf'},Drive:{Files:{
+    get:id=>({version:id==='doc'?version:'1'}),
+    list:({q})=>({files:made.filter(f=>q.includes(f.appProperties.hopdong)).map(f=>({id:f.id}))}),
+    copy:(fields,id)=>{assert.equal(id,'doc');const f={...fields,id:'stored'+made.length};made.push(f);return f;}
+  }}});
+  const doc={getId:()=>'doc',getAs:()=>{if(concurrent)version='9';return {setName:n=>n};}};
+  const dir={getId:()=>'target',createFile:()=>({getId:()=>'pdf'})};
+  let proof;
+  c.exportPdf_(doc,dir,'HD',p=>{proof=p;});
+  assert.equal(proof,c.digest_(['doc','8','pdf','1']));
+  assert.equal(c.copyNativeDoc_('doc',dir,'HD','8'),c.copyNativeDoc_('doc',dir,'HD','8'));
+  assert.equal(made.length,1);
+  assert.notEqual(c.copyNativeDoc_('doc',dir,'HD','9'),made[0].id);
+  concurrent=true;
+  assert.throws(()=>c.exportPdf_(doc,dir,'HD',()=>{}),/thay đổi/);
+});
+
+test('Kết nối một lần từ Sheet của chủ sở hữu, giữ ID sổ, gom mẫu và chạy lại được', () => {
+  const props=properties(),bookId='so',rootId='root-id',events=[];
+  let templateValue='external',parent='old',answer='no',actor='owner';
+  const ss={getId:()=>bookId,getOwner:()=>({getEmail:()=>'owner'})};
+  const ui={ButtonSet:{YES_NO:'yesno'},Button:{YES:'yes'},alert:()=>answer};
+  const root={getId:()=>rootId,getName:()=>'Quản lý hợp đồng Hồng Thiên'};
+  const c=runtime({PropertiesService:{getScriptProperties:()=>props},
+    SpreadsheetApp:{getActiveSpreadsheet:()=>ss,getUi:()=>ui},
+    DriveApp:{getFolderById:()=>root,getFileById:id=>{
+      assert.equal(id,bookId);return {moveTo:folder=>{parent=folder.getId();events.push('move');}};
+    }}});
+  Object.assign(c,{activeEmail_:()=>actor, getConfig:()=>({ROOT_FOLDER_ID:rootId}),withLock_:f=>f(),
+    appendLog_(){},showAlert_(){},initSheetStructure(){}, getHeaderIndexMap_:()=>({ID_Google_Docs_Mau:2}),
+    sheet_:()=>({getRange:()=>({setValue:v=>{templateValue=v;}})}),
+    records_:()=>[{ID_Google_Docs_Mau:templateValue},{ID_Google_Docs_Mau:'<DIEN_ID_DOC_MAU>'}],
+    childFolder_:()=>({}),templateInRoot_:id=>id==='external'?'canonical':id,
+    hasParent_:(file,id)=>parent===id});
+  c.ketNoiWebApp();
+  assert.equal(props.getProperty('hopdong/spreadsheet'),null);
+  actor='staff';assert.throws(()=>c.ketNoiWebApp(),/Chủ sở hữu/);
+  actor='owner';answer='yes';c.ketNoiWebApp();c.ketNoiWebApp();
+  assert.deepEqual(events,['move']);assert.equal(templateValue,'canonical');
+  assert.equal(props.getProperty('hopdong/spreadsheet'),bookId);
+});
+
+test('Bản Docs chính thức chỉ đọc, chạy lại giữ khóa của chủ sở hữu', () => {
+  let rules=[],writes=0;
+  const c=runtime({Drive:{Files:{get:()=>({contentRestrictions:rules}),
+    update:(file,id)=>{assert.equal(id,'archive');writes++;rules=file.contentRestrictions;}}}});
+  c.lockApprovedCopy_('archive');c.lockApprovedCopy_('archive');
+  assert.equal(writes,1);assert.equal(rules[0].readOnly,true);assert.equal(rules[0].ownerRestricted,true);
 });

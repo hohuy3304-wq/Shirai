@@ -81,7 +81,7 @@ function runDailyContractScan() { return runAction_('Quét hết hạn định k
 function quetHetHan() { return runAction_('Quét hết hạn', dailyScan_, {menu: true}); }
 
 function ensureDailyTrigger_() {
-  const owner = SpreadsheetApp.getActiveSpreadsheet().getOwner();
+  const owner = contractBook_().getOwner();
   if (!owner || activeEmail_() !== owner.getEmail().toLowerCase())
     throw new Error('Chỉ chủ sở hữu bảng tính My Drive cài trigger chung.');
   const triggers = ScriptApp.getProjectTriggers().filter(t =>

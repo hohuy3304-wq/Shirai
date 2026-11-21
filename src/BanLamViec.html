@@ -61,6 +61,8 @@
       article {
         padding: 10px 20px 20px;
         min-width: 0;
+        width: 100%;
+        max-width: 1100px;
       }
       h1 {
         font-size: 23px;
@@ -186,7 +188,7 @@
       <nav>
         <strong>Hồng Thiên</strong> <button data-page="create">Tạo hợp đồng</button
         ><button data-page="mine">Hợp đồng của tôi</button><button data-page="review">Chờ tôi duyệt</button
-        ><button data-page="settings">Thiết lập</button>
+        ><button data-page="approved">Hợp đồng đã duyệt</button><button data-page="settings">Thiết lập</button>
       </nav>
       <article>
         <h1 id="title">Hợp đồng</h1>
@@ -260,13 +262,16 @@
             ><button class="primary" type="submit">Tạo và gửi duyệt</button>
           </div>
         </form>
+        <div id="filters" class="grid" hidden>
+          <label>Tìm số hợp đồng hoặc khách hàng<input type="search" id="findContract" /></label>
+          <label>Trạng thái<select id="stateFilter"><option value="">Tất cả trạng thái</option></select></label>
+        </div><p id="noMatches" hidden>Không tìm thấy hồ sơ phù hợp.</p>
         <div id="list"></div>
         <form id="settings" hidden>
-          <p>
-            Chủ sở hữu thiết lập mẫu một lần. Thông tin bên bán và danh sách người duyệt nằm trong tab CauHinh.
-          </p>
-          <label>Liên kết Google Docs mẫu HĐNT<input name="doc" required /></label>
-          <label>Thư mục lưu trên Drive (bỏ trống để dùng cấu hình hiện tại)<input name="folder" /></label>
+          <label>Loại hợp đồng<select name="type"></select></label>
+          <label>Mẫu Google Docs<input name="doc" placeholder="Dán liên kết Google Docs" /></label>
+          <label>Thư mục gốc trên Drive<input name="folder" /></label>
+          <label>Email người duyệt (cách nhau bằng dấu phẩy)<textarea name="reviewers"></textarea></label>
           <div class="actions"><button>Lưu thiết lập</button></div>
         </form>
       </article>
@@ -289,11 +294,13 @@
         meta = {},
         page = '',
         busy = false,
-        dirty = false;
+        dirty = false,
+        refreshCatalog = false;
       const titles = {
         create: 'Lập hợp đồng',
         mine: 'Hợp đồng của tôi',
         review: 'Chờ tôi duyệt',
+        approved: 'Hợp đồng đã duyệt',
         settings: 'Thiết lập'
       };
       function api(name, ...args) {
@@ -372,6 +379,8 @@
         }
       }
       function section(id) {
+        $('filters').hidden = true;
+        $('noMatches').hidden = true;
         for (const k of ['form', 'settings']) $(k).hidden = k !== id;
         $('list').replaceChildren();
       }
@@ -453,6 +462,32 @@
           .querySelectorAll('nav button')
           .forEach((b) => b.setAttribute('aria-current', String(b.dataset.page === page)));
       }
+      function filterContracts() {
+        const query = $('findContract').value.toLocaleLowerCase('vi').trim();
+        const state = $('stateFilter').value;
+        const cards = Array.from($('list').children);
+        for (const card of cards) {
+          card.hidden = !card.dataset.search.includes(query) || (!!state && state !== card.dataset.state);
+        }
+        $('noMatches').hidden = !cards.length || cards.some(card => !card.hidden);
+      }
+      $('findContract').oninput = $('stateFilter').onchange = filterContracts;
+      function setupForm() {
+        const f = $('settings').elements, config = catalog.settings;
+        if (!config) return;
+        const type = f.type.value || catalog.frameworkTypes[0] || catalog.types[0];
+        f.type.replaceChildren(...catalog.types.map(t => new Option(t,t)));
+        f.type.value = type;
+        function loadTemplate() {
+          const doc = config.templates.find(t => t.type === f.type.value)?.doc;
+          f.doc.value = /^[\w-]+$/.test(doc || '') ? 'https://docs.google.com/document/d/' + doc + '/edit' : (doc && !doc.startsWith('<') ? doc : '');
+        }
+        f.type.onchange = loadTemplate;
+        loadTemplate();
+        f.folder.value = config.root;
+        f.folder.readOnly = config.connected;
+        f.reviewers.value = config.reviewers;
+      }
       async function show(mode) {
         if (dirty && !(await ask('Rời phiếu và bỏ các thay đổi chưa lưu?'))) return;
         dirty = false;
@@ -461,12 +496,18 @@
         $('title').textContent = titles[mode];
         $('message').textContent = '';
         section('');
+        if (refreshCatalog) {
+          catalog = await api('layDanhMucPhieu');
+          loadTypes();
+          refreshCatalog = false;
+        }
         if (mode === 'create') {
           edit();
           return;
         }
         if (mode === 'settings') {
           section('settings');
+          setupForm();
           return;
         }
         const data = await api('danhSachHoSo', mode);
@@ -483,6 +524,8 @@
                   'Chưa chọn khách')
             )
           );
+          card.dataset.search = [d.number,d.Ma_KH,d.MST,card.querySelector('h3').textContent].join(' ').toLocaleLowerCase('vi');
+          card.dataset.state = 'Nháp';
           addButton(card, 'Mở bản nháp', () => edit(d));
           addButton(card, 'Xóa nháp', async () => {
             if (await ask('Xóa bản nháp cá nhân này?')) {
@@ -514,14 +557,24 @@
                 .join(' · ')
             )
           );
+          card.dataset.search = [r.number,r.name,r.fields.Ma_KH].join(' ').toLocaleLowerCase('vi');
+          card.dataset.state = r.state;
           fileLink(card, 'Xem PDF trình duyệt', r.pdf);
-          if (mode === 'mine') fileLink(card, 'Mở Docs', r.docs);
+          if (r.approvedDoc) {
+            fileLink(card, 'Mở Docs đã duyệt', r.approvedDoc);
+            if (r.approver) card.append(el('p','Người duyệt · ' + r.approver));
+          } else fileLink(card, 'Mở Docs', r.docs);
           const actions = el('div', '');
           actions.className = 'actions';
           card.append(actions);
           async function decide(action, detail = '') {
             await api('xuLyHoSo', r.number, r.version, action, detail);
             await show(mode);
+          }
+          if (catalog.approver && r.state === 'Đã duyệt') {
+            addButton(actions,'Đánh dấu đã ký',async () => {
+              if (await ask('Xác nhận hai bên đã ký ' + r.number + '?')) await decide('sign');
+            });
           }
           if (mode === 'review') {
             addButton(actions, 'Phê duyệt', async () => {
@@ -536,7 +589,7 @@
               edit({ ...r.fields, number: r.number, version: r.version })
             );
           } else if (
-            catalog.frameworkTypes.includes(r.fields.Loai_HD) &&
+            mode === 'mine' && catalog.frameworkTypes.includes(r.fields.Loai_HD) &&
             ['Đã duyệt', 'Đã ký'].includes(r.state)
           ) {
             addButton(actions, 'Hẹn rà soát', async () => {
@@ -550,6 +603,10 @@
           }
           $('list').append(card);
         }
+        $('findContract').value = '';
+        const states = new Set(Array.from($('list').children, c => c.dataset.state));
+        $('stateFilter').replaceChildren(new Option('Tất cả trạng thái',''), ...Array.from(states,s => new Option(s,s)));
+        $('filters').hidden = !states.size;
         if (!data.drafts.length && !data.rows.length)
           $('message').textContent = 'Chưa có hồ sơ trong danh sách này.';
       }
@@ -572,7 +629,9 @@
         e.preventDefault();
         task(async () => {
           $('message').textContent = 'Đang tạo tệp và gửi duyệt…';
-          const result = await api('guiPhieuDeDuyet', payload());
+          const submitted = payload();
+          const result = await api('guiPhieuDeDuyet', submitted);
+          refreshCatalog = !submitted.Ma_KH;
           dirty = false;
           section('');
           $('message').textContent = 'Đã gửi duyệt ' + result.number + '.';
@@ -587,10 +646,13 @@
           $('message').textContent = await api(
             'thietLapHoSo',
             $('settings').elements.doc.value,
-            $('settings').elements.folder.value
+            $('settings').elements.folder.value,
+            $('settings').elements.type.value,
+            $('settings').elements.reviewers.value
           );
           catalog = await api('layDanhMucPhieu');
           loadTypes();
+          setupForm();
         });
       };
       function loadTypes() {

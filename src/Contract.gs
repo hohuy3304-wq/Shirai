@@ -37,18 +37,19 @@ function requiredId_(id, label) {
 function getOrCreateFolderPath_(rootId, nam, tenKh) {
   let folder = DriveApp.getFolderById(requiredId_(rootId, 'ROOT_FOLDER_ID'));
   [String(nam), String(tenKh).trim()].forEach(name => {
-    const matches = folder.getFoldersByName(name);
-    if (!matches.hasNext()) folder = folder.createFolder(name);
-    else {
-      folder = matches.next();
-      if (matches.hasNext()) throw new Error('Có nhiều thư mục trùng tên ' + name);
-    }
+    folder = childFolder_(folder, name);
   });
   return folder;
 }
+function customFolderId_(template) {
+  if (!template.Thu_Muc_Luu_ID || PropertiesService.getScriptProperties().getProperty(BOOK_PROPERTY)) return '';
+  return requiredId_(template.Thu_Muc_Luu_ID, 'Thu_Muc_Luu_ID');
+}
+
 function destination_(template, cfg, year, customer) {
-  return template.Thu_Muc_Luu_ID
-    ? DriveApp.getFolderById(requiredId_(template.Thu_Muc_Luu_ID, 'Thu_Muc_Luu_ID'))
+  const custom = customFolderId_(template);
+  return custom
+    ? DriveApp.getFolderById(custom)
     : getOrCreateFolderPath_(cfg.ROOT_FOLDER_ID, year, customer);
 }
 
@@ -100,8 +101,9 @@ function createContract_(ctx, newEdition) {
   const map = placeholders_(row, kh, cfg);
   reserveFileJob_(ctx);
   return () => {
-    const pdf = fillTemplateAndExportPdf_(id, folder, name, map, url => linkFile_(ctx, 'Link_Docs', url));
-    linkFile_(ctx, 'Link_PDF', pdf.getUrl());
+    let proof;
+    const pdf = fillTemplateAndExportPdf_(id, folder, name, map, url => linkFile_(ctx, 'Link_Docs', url), value => { proof = value; });
+    linkFile_(ctx, 'Link_PDF', pdf.getUrl(), proof);
     return 'Đã tạo Docs và PDF cho ' + row.So_HD;
   };
 }
@@ -131,13 +133,18 @@ function locateContract_(sheet, map, number) {
   return matches[0].getRow();
 }
 
-function linkFile_(ctx, key, url) {
+function linkFile_(ctx, key, url, proof) {
   withLock_(() => {
     const sheet = ctx.sheet;
     const map = getHeaderIndexMap_(sheet);
     try {
       const row = locateContract_(sheet, map, ctx.data.So_HD);
-      setField_({...ctx, row, map}, key, url);
+      const current = {...ctx, row, map};
+      if (proof) {
+        addFields_(current,['Dau_Tep_Xuat']);
+        setField_(current,'Dau_Tep_Xuat',proof);
+      }
+      setField_(current, key, url);
     } catch (err) { throw new Error(err.message + '. Tệp đã lưu tại ' + url); }
   });
 }
@@ -150,8 +157,9 @@ function regeneratePdf_(ctx) {
   const folder = folderOfDoc_(row.Link_Docs);
   reserveFileJob_(ctx);
   return () => {
-    const pdf = exportPdf_(file, folder, file.getName());
-    linkFile_(ctx, 'Link_PDF', pdf.getUrl());
+    let proof;
+    const pdf = exportPdf_(file, folder, file.getName(), value => { proof = value; });
+    linkFile_(ctx, 'Link_PDF', pdf.getUrl(), proof);
     return 'Đã xuất PDF từ bản Docs của ' + row.So_HD;
   };
 }

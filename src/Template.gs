@@ -63,11 +63,23 @@ function fillTab_(tab, map, pattern, found) {
   sections.filter(Boolean).forEach(s => fillSection_(s, map, pattern, found));
 }
 
-function exportPdf_(file, folder, name) {
-  return folder.createFile(file.getAs(MimeType.PDF).setName(name + '.pdf'));
+function driveVersion_(id) {
+  const version = Drive.Files.get(id, {fields:'version'}).version;
+  if (version == null) throw new Error('Không đọc được phiên bản của tệp trên Drive.');
+  return String(version);
 }
 
-function fillTemplateAndExportPdf_(templateId, destFolder, fileName, map, saveDocLink) {
+function exportPdf_(file, folder, name, recordProof) {
+  const revision = recordProof && driveVersion_(file.getId());
+  const blob = file.getAs(MimeType.PDF).setName(name + '.pdf');
+  if (recordProof && revision !== driveVersion_(file.getId()))
+    throw new Error('Bản Docs thay đổi trong khi xuất PDF. Hãy thử lại.');
+  const pdf = folder.createFile(blob);
+  if (recordProof) recordProof(digest_([file.getId(), revision, pdf.getId(), driveVersion_(pdf.getId())]));
+  return pdf;
+}
+
+function fillTemplateAndExportPdf_(templateId, destFolder, fileName, map, saveDocLink, recordProof) {
   const copy = DriveApp.getFileById(templateId).makeCopy(fileName, destFolder);
   try {
     const doc = DocumentApp.openById(copy.getId());
@@ -92,5 +104,5 @@ function fillTemplateAndExportPdf_(templateId, destFolder, fileName, map, saveDo
     throw err;
   }
   saveDocLink('https://docs.google.com/document/d/' + copy.getId() + '/edit');
-  return exportPdf_(copy, destFolder, fileName);
+  return exportPdf_(copy, destFolder, fileName, recordProof);
 }

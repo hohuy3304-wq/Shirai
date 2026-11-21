@@ -1,26 +1,33 @@
-# Hồng Thiên · Quản lý hợp đồng trên Google Sheets
+# Web App quản lý hợp đồng Hồng Thiên
 
-Mở **Hợp đồng → Tạo hợp đồng…** từ bất kỳ tab nào. Phiếu cho phép nhân viên lập hợp đồng, theo dõi hồ sơ của mình và gửi PDF cho người duyệt ngay trong Sheet.
+Nhân viên mở đường dẫn web app để lập và theo dõi hồ sơ. Google Sheets lưu khách hàng, bản nháp, hợp đồng và nhật ký. Google Docs lưu mẫu và bản đã duyệt. Menu **Hợp đồng** trong Sheet vẫn mở được cùng giao diện.
 
-## Cập nhật Sheet đang sử dụng
+## Đưa bản mới vào Sheet đang dùng
 
-1. Thay toàn bộ thư mục `src` trên máy bằng thư mục `src` của bản mới. Nếu dùng ZIP, đổi tên thư mục cũ thành `src-cu` trước khi giải nén để giữ bản sao. Trong thư mục đã đăng nhập clasp và đã có `.clasp.local.json`, chạy `npx clasp -P .clasp.local.json push`.
-2. Tải lại Sheet. Chủ sở hữu chọn **Hợp đồng → Chuẩn bị mẫu và thư mục**. Lệnh bổ sung cấu hình và loại HĐNT, tạo mẫu tham khảo cho các loại thông thường còn thiếu và cập nhật danh sách trạng thái.
-3. Đưa bản mẫu HĐNT có các khóa vào Drive, mở bằng Google Tài liệu và chọn **Tệp → Lưu dưới dạng Google Tài liệu** nếu tệp còn ở dạng Word. Trong **Hợp đồng → Tạo hợp đồng… → Thiết lập**, dán liên kết bản Google Docs. Có thể dán liên kết thư mục gốc **Quản lý hợp đồng Hồng Thiên** nếu cần đổi nơi lưu. Một mẫu được dùng cho nhiều hồ sơ cùng loại.
-4. Điền thông tin bên bán, điện thoại, tài khoản và danh sách email **NGUOI_DUYET** trong tab **CauHinh**. Chia sẻ Sheet với quyền chỉnh sửa cho nhóm, mẫu với quyền đọc/sao chép và thư mục đích với quyền tạo tệp. Người duyệt cần đọc được PDF. Phần cài lịch nhắc ở cuối tài liệu mô tả cách nhận email.
+1. Đồng bộ toàn bộ thư mục `src` bằng `npx clasp -P .clasp.local.json push`. Nếu dùng gói Windows đã cấu hình, giải nén vào thư mục mới rồi chạy **Cap-nhat.cmd** trên máy đã đăng nhập clasp.
+2. Tải lại Sheet. Chủ sở hữu chọn **Hợp đồng → Chuẩn bị mẫu và thư mục**. Trong **CauHinh**, kiểm tra thông tin bên bán và `ROOT_FOLDER_ID` trỏ tới thư mục **Quản lý hợp đồng Hồng Thiên** trên My Drive. Chủ sở hữu chọn **Hợp đồng → Kết nối Web App…**, kiểm tra tên thư mục rồi xác nhận. Thao tác chuyển chính Sheet vào thư mục đó, sao chép các mẫu Docs đang cấu hình vào **Mẫu hợp đồng** và liên kết web app với ID của Sheet.
+3. Trong **Tiện ích mở rộng → Apps Script → Triển khai → Tùy chọn triển khai mới**, chọn **Ứng dụng web**. Chọn **Thực thi dưới dạng người dùng truy cập ứng dụng web**. Với Google Workspace chọn phạm vi trong tổ chức nếu phù hợp. Với Gmail cá nhân chọn người có tài khoản Google. Triển khai và sao chép đường dẫn kết thúc bằng `/exec`. Khi cập nhật một web app đã triển khai, dùng **Quản lý bản triển khai → Chỉnh sửa → Phiên bản mới** để cập nhật đường dẫn cũ.
+4. Chủ sở hữu mở link, vào **Thiết lập**, chọn loại hợp đồng, dán link mẫu Google Docs và nhập email người duyệt. Với mẫu Word, mở bằng Google Tài liệu rồi chọn **Tệp → Lưu dưới dạng Google Tài liệu** trước. Mẫu mới đến từ ngoài thư mục sẽ được sao chép vào kho mẫu. Khi thay nội dung, sửa bản mà tab **Mau** đang tham chiếu.
+5. Chia sẻ quyền sửa Sheet cho nhóm nội bộ, quyền đọc và sao chép mẫu, quyền ghi thư mục lưu hợp đồng cho người lập và người duyệt. Mỗi nhân viên mở link bằng tài khoản được chia sẻ và cấp quyền Google lần đầu. Ứng dụng dùng Drive API v3 trong manifest. Nếu dùng dự án Google Cloud tiêu chuẩn tự quản lý, bật Google Drive API trong dự án đó.
+
+Sau khi kết nối, hợp đồng mới lưu tại **Thư mục gốc / Năm / Khách hàng**. Mỗi lần trình giữ Docs và PDF riêng. Lúc phê duyệt, app kiểm tra phiên bản cả hai tệp, tạo Google Docs chính thức trong **Đã duyệt** bên dưới thư mục khách hàng và ghi người duyệt, thời điểm, liên kết vào Sheet. Drive khóa nội dung bản Docs đã duyệt ở chế độ chỉ đọc. Chủ sở hữu tệp có thể quản lý khóa. Tệp cũ tiếp tục mở ở vị trí đã lưu. Hồ sơ đang chờ duyệt từ bản cũ cần trả về và trình lại một lần để có thông tin phiên bản Drive.
+
+## Kiểm tra web app với hai tài khoản
+
+Trên Sheet và thư mục thử, tài khoản A lưu nháp, mở lại và gửi một HĐNT. Tài khoản B trong danh sách người duyệt xem PDF, trả về kèm lý do rồi duyệt lần trình thứ hai. Trong **Hợp đồng đã duyệt**, cả hai tài khoản kiểm tra số hợp đồng, link Docs đã duyệt và người duyệt. Đối chiếu với **HopDong**, thư mục **Đã duyệt** và hai đường dẫn PDF trong **NhatKy**.
 
 ## Một vòng lập và duyệt HĐNT
 
 | Người dùng | Thao tác |
 | --- | --- |
-| Người lập | Chọn **Hợp đồng → Tạo hợp đồng…**. Tìm bên mua theo tên, mã hoặc MST. Có thể thêm khách hàng ngay trên phiếu. Kiểm tra tên pháp nhân, MST, địa chỉ, người đại diện và chức vụ. |
+| Người lập | Trên web app chọn **Tạo hợp đồng**. Tìm bên mua theo tên, mã hoặc MST. Có thể thêm khách hàng ngay trên phiếu. Kiểm tra tên pháp nhân, MST, địa chỉ, người đại diện và chức vụ. |
 | Người lập | Điền ngày ký và người phụ trách. Ngày ký cũng là ngày hiệu lực. Nếu ký theo ủy quyền, điền số và ngày giấy ủy quyền. Điền ngày rà soát nếu muốn nhận nhắc. Giá trị tổng có thể để trống khi đơn giá theo từng đơn hàng. |
-| Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Hợp đồng của tôi**. Mỗi bản nháp lưu tối đa 8.500 byte. |
+| Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Hợp đồng của tôi**. Dữ liệu phiếu được lưu vào tab **BanNhap**. |
 | Người lập | **Tạo và gửi duyệt** cấp số, lưu Docs và PDF, chuyển sang **Chờ duyệt**. Nếu bị trả về, mở **Hợp đồng của tôi → Sửa và trình duyệt**, sửa theo lý do rồi gửi lại. Số hợp đồng giữ nguyên và mỗi lần trình có PDF riêng. |
 | Người duyệt | Mở **Chờ tôi duyệt**, xem PDF của lần trình, bấm **Phê duyệt** hoặc **Trả về** và ghi lý do. Mỗi lần trình ghi số phiên bản và liên kết PDF vào **NhatKy**. Nếu hồ sơ thay đổi trong khi đang mở, tải lại danh sách trước khi thao tác. |
 | Người phụ trách hoặc người lập | Với HĐNT đã duyệt hoặc đã ký, mở **Hợp đồng của tôi** để hẹn ngày rà soát mới hoặc ghi căn cứ chấm dứt. HĐNT tự gia hạn theo mẫu. Đến mốc rà soát, hệ thống nhắc theo lịch đã cài và giữ trạng thái hiện tại. |
 
-**HopDong** là sổ chung của nhóm. Danh sách **Hợp đồng của tôi** lọc theo người tạo hoặc phụ trách. Người có quyền sửa Sheet có thể mở sổ chung và bound script. Bản nháp cá nhân được lưu riêng theo tài khoản bằng User Properties.
+**HopDong** là sổ chung của nhóm. Danh sách **Hợp đồng của tôi** lọc theo người tạo hoặc phụ trách. Người có quyền sửa Sheet có thể mở sổ chung và bound script. Danh sách nháp lọc theo email người lập. Người có quyền truy cập Sheet có thể xem tab **BanNhap**. Bản nháp từ phiên bản cũ vẫn mở được bằng tài khoản đã tạo và được chuyển vào Sheet khi lưu lại.
 
 ## Cài vào Google Workspace
 
@@ -42,7 +49,7 @@ Mở **Hợp đồng → Tạo hợp đồng…** từ bất kỳ tab nào. Phi�
    npx clasp -P .clasp.local.json push
    ```
 
-5. Tải lại trình soạn thảo Apps Script, chọn **initSheetStructure** và bấm **Chạy** bằng tài khoản chủ sở hữu. Xem và cấp các quyền cho bảng tính hiện hành, Docs, Drive, gửi mail, nhận diện email, quản lý trigger và hiển thị hộp thoại liên kết thư mục. Mẫu và thư mục do tổ chức cung cấp cần cho phép tài khoản thực thi truy cập. Hàm khởi tạo dùng múi giờ **Asia/Ho_Chi_Minh**, tạo năm tab, tiêu đề, danh mục ban đầu, dropdown, định dạng và công thức tên khách hàng. Có thể chạy lại sau khi thêm hàng để bổ sung công thức vào các ô tên còn trống.
+5. Tải lại trình soạn thảo Apps Script, chọn **initSheetStructure** và bấm **Chạy** bằng tài khoản chủ sở hữu. Xem và cấp các quyền cho Google Sheets để mở sổ theo ID khi chạy qua web, Docs, Drive, gửi mail, nhận diện email, quản lý trigger và hiển thị hộp thoại liên kết thư mục. Mẫu và thư mục do tổ chức cung cấp cần cho phép tài khoản thực thi truy cập. Hàm khởi tạo dùng múi giờ **Asia/Ho_Chi_Minh**, tạo sáu tab, tiêu đề, danh mục ban đầu, dropdown, định dạng và công thức tên khách hàng. Có thể chạy lại sau khi thêm hàng để bổ sung công thức vào các ô tên còn trống.
 6. Chạy **runAllTests** trong trình soạn thảo. Nhật ký thực thi liệt kê năm nhóm kiểm thử. Tải lại Sheet để thấy menu **Hợp đồng**. Mỗi người thao tác nên dùng một Chrome Profile chỉ đăng nhập tài khoản Workspace của công ty để xác định đúng email khi duyệt.
 
 ## Điền dữ liệu trước hợp đồng đầu tiên
@@ -50,9 +57,10 @@ Mở **Hợp đồng → Tạo hợp đồng…** từ bất kỳ tab nào. Phi�
 | Tab | Dữ liệu cần chuẩn bị |
 | --- | --- |
 | KhachHang | Mỗi khách hàng một `Ma_KH` duy nhất. Nhập tên công ty, địa chỉ, MST, người đại diện, chức vụ, điện thoại, email và tài khoản ngân hàng. Các cột mã, thuế, điện thoại và tài khoản dùng văn bản để giữ số 0 đầu. |
-| Mau | Mỗi `Loai_HD` một dòng. Thay `<DIEN_ID_DOC_MAU>` bằng ID Google Docs thật, nhập tiền tố như `HDDV` hoặc `HDNT`. Nếu điền `Thu_Muc_Luu_ID`, ứng dụng lưu trực tiếp vào thư mục đó. |
+| Mau | Mỗi `Loai_HD` một dòng. Thay `<DIEN_ID_DOC_MAU>` bằng ID Google Docs thật, nhập tiền tố như `HDDV` hoặc `HDNT`. Trước khi kết nối web app, `Thu_Muc_Luu_ID` có thể chỉ định thư mục riêng. Sau khi kết nối, các hợp đồng mới dùng thư mục gốc chung. |
 | CauHinh | Điền các khóa bên bán, `NGUOI_DUYET`, `EMAIL_NHAN_NHAC` và `SO_NGAY_NHAC` (mặc định `30,15,7`). Danh sách dùng dấu phẩy. Thay `<DIEN_ID_THU_MUC_GOC>` bằng ID thư mục khi dùng cách lưu theo năm và tên khách hàng. |
 | HopDong | Với loại có thời hạn, nhập loại, mã khách, ngày hiệu lực, ngày hết hạn và giá trị VND. Ngày hết hạn phải sau ngày hiệu lực. Có thể nhập ngày ký, điều khoản thanh toán, email người phụ trách và ghi chú. Chừa các trường cấp số, thời điểm tạo và liên kết cho script. |
+| BanNhap | Bản nháp theo email người lập và mã phiếu, gồm cả thông tin đang nhập dở. |
 | NhatKy | Mỗi thao tác menu và mỗi lần quét ghi thời điểm, email, hành động, số hợp đồng nếu có và kết quả hoặc lỗi. |
 
 ID của mẫu nằm giữa `/document/d/` và `/edit` trên URL. ID thư mục nằm sau `/folders/`. Người tạo hợp đồng cần quyền đọc/sao chép mẫu và quyền tạo tệp ở thư mục đích. Người nhận email cần quyền đọc tệp qua Drive để mở liên kết. Phiên bản này dùng My Drive.
