@@ -10,6 +10,15 @@ function scanRows_(data, map, today, thresholds) {
   data.forEach((values, i) => {
     const r = record_(values, map);
     if (![ST.approved, ST.signed].includes(r.Trang_Thai)) return;
+    if (isHdnt_(r.Loai_HD)) {
+      // Ngày hết hạn trên các dòng cũ chỉ dùng làm mốc nhắc khi chưa có ngày rà soát.
+      const review = r.Ngay_Ra_Soat || r.Ngay_Het_Han;
+      if (review && validDate_(review) && r.So_HD) {
+        const days = dayNumber_(review) - today;
+        if (thresholds.has(days) || days === 0) due.push({contract:r, days, review});
+      } else if (review) invalid.push(i + 2);
+      return;
+    }
     if (!r.So_HD || !validDate_(r.Ngay_Het_Han)) { invalid.push(i + 2); return; }
     const days = dayNumber_(r.Ngay_Het_Han) - today;
     if (days < 0) expired.push({row: i + 2, number: r.So_HD});
@@ -32,14 +41,14 @@ function sendSummary_(cfg, due, dateLabel) {
   if (recipients.length > 50 || MailApp.getRemainingDailyQuota() < recipients.length)
     throw new Error('Hạn mức email không đủ cho danh sách người nhận.');
   const lines = [], items = [];
-  due.forEach(({contract: r, days}) => {
-    const detail = r.So_HD + ' — ' + r.Ten_KH + ' — hết hạn ' + formatDateVi_(r.Ngay_Het_Han) + ' (còn ' + days + ' ngày)';
+  due.forEach(({contract: r, days, review}) => {
+    const detail = r.So_HD + ' — ' + r.Ten_KH + (review ? ' — rà soát gia hạn ' : ' — hết hạn ') + formatDateVi_(review || r.Ngay_Het_Han) + ' (còn ' + days + ' ngày)';
     lines.push(detail);
     items.push('<li>' + html_(detail) + ' ' + mailLink_(r.Link_Docs, 'Docs') + ' ' + mailLink_(r.Link_PDF, 'PDF') + '</li>');
   });
   MailApp.sendEmail({
     to: recipients.join(','), subject: 'Nhắc hạn hợp đồng ngày ' + dateLabel,
-    body: lines.join('\n'), htmlBody: '<p>Các hợp đồng sắp hết hạn</p><ul>' + items.join('') + '</ul>'
+    body: lines.join('\n'), htmlBody: '<p>Hợp đồng đến mốc hết hạn hoặc rà soát gia hạn</p><ul>' + items.join('') + '</ul>'
   });
 }
 

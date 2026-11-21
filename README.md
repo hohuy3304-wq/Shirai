@@ -1,13 +1,26 @@
-# Shirai · Quản lý hợp đồng trên Google Sheets
+# Hồng Thiên · Quản lý hợp đồng trên Google Sheets
 
-Người phụ trách nhập một dòng hợp đồng trên Google Sheets. Menu **Hợp đồng** cấp số, điền mẫu Google Docs, xuất PDF và ghi hai liên kết vào dòng đó. Người duyệt chốt nội dung trên Sheet. Chủ sở hữu cài lịch tổng hợp các hợp đồng sắp hết hạn qua email.
+Mở **Hợp đồng → Tạo hợp đồng…** từ bất kỳ tab nào. Phiếu cho phép nhân viên lập hợp đồng, theo dõi hồ sơ của mình và gửi PDF cho người duyệt ngay trong Sheet.
 
-## Nhập hợp đồng trên một phiếu
+## Cập nhật Sheet đang sử dụng
 
-1. Sau khi đồng bộ mã, tải lại Sheet. Chủ sở hữu chọn **Hợp đồng → Chuẩn bị mẫu và thư mục** khi cần tạo cấu hình còn thiếu. Lệnh dùng lại cấu hình đã điền, tạo mẫu tham khảo cho loại chưa có mẫu và dùng thư mục **Quản lý hợp đồng Hồng Thiên** trên My Drive khi cần. Có thể dán nguyên link Docs và link thư mục Google Drive vào các ô cấu hình. Điền thông tin pháp nhân Hồng Thiên ở tab **CauHinh** một lần và chia sẻ quyền đọc mẫu, ghi thư mục cho người lập.
-2. Chọn **Hợp đồng → Nhập hợp đồng mới…** ở bất kỳ tab nào. Chọn loại và khách hàng, hoặc chọn **Thêm khách hàng mới…**. Điền nội dung, các ngày, giá trị VND, điều khoản thanh toán, người phụ trách và ghi chú. Email phụ trách và hai ngày đầu được điền gợi ý, có thể sửa trước khi tạo.
-3. Bấm **Tạo hợp đồng và PDF**. Khi thành công, phiếu hiển thị số hợp đồng và hai liên kết. Dòng được lưu trong **HopDong**. Khi xuất lỗi sau bước lưu, dùng **Thử xuất lại** trên cùng phiếu hoặc tiếp tục từ dòng đã lưu. Phiếu bổ sung hai cột ở cuối bảng khi dùng lần đầu: `Noi_Dung_HD` chứa công việc/hàng hóa, `Ma_Phieu` nhận diện lần nhập để tránh tạo trùng khi gửi lại.
-4. Với mẫu Docs riêng đã dùng trước đây, đặt **`{{NOI_DUNG_HD}}`** tại phần mô tả công việc để đưa nội dung mới vào bản xuất. Mẫu tham khảo do chức năng chuẩn bị tạo đã có sẵn khóa này.
+1. Thay toàn bộ thư mục `src` trên máy bằng thư mục `src` của bản mới. Nếu dùng ZIP, đổi tên thư mục cũ thành `src-cu` trước khi giải nén để giữ bản sao. Trong thư mục đã đăng nhập clasp và đã có `.clasp.local.json`, chạy `npx clasp -P .clasp.local.json push`.
+2. Tải lại Sheet. Chủ sở hữu chọn **Hợp đồng → Chuẩn bị mẫu và thư mục**. Lệnh bổ sung cấu hình và loại HĐNT, tạo mẫu tham khảo cho các loại thông thường còn thiếu và cập nhật danh sách trạng thái.
+3. Đưa bản mẫu HĐNT có các khóa vào Drive, mở bằng Google Tài liệu và chọn **Tệp → Lưu dưới dạng Google Tài liệu** nếu tệp còn ở dạng Word. Trong **Hợp đồng → Tạo hợp đồng… → Thiết lập**, dán liên kết bản Google Docs. Có thể dán liên kết thư mục gốc **Quản lý hợp đồng Hồng Thiên** nếu cần đổi nơi lưu. Một mẫu được dùng cho nhiều hồ sơ cùng loại.
+4. Điền thông tin bên bán, điện thoại, tài khoản và danh sách email **NGUOI_DUYET** trong tab **CauHinh**. Chia sẻ Sheet với quyền chỉnh sửa cho nhóm, mẫu với quyền đọc/sao chép và thư mục đích với quyền tạo tệp. Người duyệt cần đọc được PDF. Phần cài lịch nhắc ở cuối tài liệu mô tả cách nhận email.
+
+## Một vòng lập và duyệt HĐNT
+
+| Người dùng | Thao tác |
+| --- | --- |
+| Người lập | Chọn **Hợp đồng → Tạo hợp đồng…**. Tìm bên mua theo tên, mã hoặc MST. Có thể thêm khách hàng ngay trên phiếu. Kiểm tra tên pháp nhân, MST, địa chỉ, người đại diện và chức vụ. |
+| Người lập | Điền ngày ký và người phụ trách. Ngày ký cũng là ngày hiệu lực. Nếu ký theo ủy quyền, điền số và ngày giấy ủy quyền. Điền ngày rà soát nếu muốn nhận nhắc. Giá trị tổng có thể để trống khi đơn giá theo từng đơn hàng. |
+| Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Hợp đồng của tôi**. Mỗi bản nháp lưu tối đa 8.500 byte. |
+| Người lập | **Tạo và gửi duyệt** cấp số, lưu Docs và PDF, chuyển sang **Chờ duyệt**. Nếu bị trả về, mở **Hợp đồng của tôi → Sửa và trình duyệt**, sửa theo lý do rồi gửi lại. Số hợp đồng giữ nguyên và mỗi lần trình có PDF riêng. |
+| Người duyệt | Mở **Chờ tôi duyệt**, xem PDF của lần trình, bấm **Phê duyệt** hoặc **Trả về** và ghi lý do. Mỗi lần trình ghi số phiên bản và liên kết PDF vào **NhatKy**. Nếu hồ sơ thay đổi trong khi đang mở, tải lại danh sách trước khi thao tác. |
+| Người phụ trách hoặc người lập | Với HĐNT đã duyệt hoặc đã ký, mở **Hợp đồng của tôi** để hẹn ngày rà soát mới hoặc ghi căn cứ chấm dứt. HĐNT tự gia hạn theo mẫu. Đến mốc rà soát, hệ thống nhắc theo lịch đã cài và giữ trạng thái hiện tại. |
+
+**HopDong** là sổ chung của nhóm. Danh sách **Hợp đồng của tôi** lọc theo người tạo hoặc phụ trách. Người có quyền sửa Sheet có thể mở sổ chung và bound script. Bản nháp cá nhân được lưu riêng theo tài khoản bằng User Properties.
 
 ## Cài vào Google Workspace
 
@@ -22,7 +35,7 @@ Người phụ trách nhập một dòng hợp đồng trên Google Sheets. Menu
    cp .clasp.json .clasp.local.json
    ```
 
-4. Điền ID tập lệnh thật vào trường `scriptId` của **.clasp.local.json**. Giữ `"rootDir": "src"`. clasp v3 đọc tệp cấu hình từ thư mục hiện hành. Thư mục gốc chứa cấu hình và thư mục `src/` chứa manifest, các tệp `.gs` và giao diện `Phieu.html`. Bản cấu hình cục bộ đã được Git bỏ qua. Kiểm tra đúng dự án và danh sách tệp trước khi đẩy lên dự án mới. Khi clasp hỏi cập nhật manifest, kiểm tra ID đích rồi xác nhận.
+4. Điền ID tập lệnh thật vào trường `scriptId` của **.clasp.local.json**. Giữ `"rootDir": "src"`. clasp v3 đọc tệp cấu hình từ thư mục hiện hành. Thư mục gốc chứa cấu hình và thư mục `src/` chứa manifest, các tệp `.gs` và giao diện `BanLamViec.html`. Bản cấu hình cục bộ đã được Git bỏ qua. Kiểm tra đúng dự án và danh sách tệp trước khi đẩy lên dự án mới. Khi clasp hỏi cập nhật manifest, kiểm tra ID đích rồi xác nhận.
 
    ```sh
    npx clasp -P .clasp.local.json show-file-status
@@ -37,9 +50,9 @@ Người phụ trách nhập một dòng hợp đồng trên Google Sheets. Menu
 | Tab | Dữ liệu cần chuẩn bị |
 | --- | --- |
 | KhachHang | Mỗi khách hàng một `Ma_KH` duy nhất. Nhập tên công ty, địa chỉ, MST, người đại diện, chức vụ, điện thoại, email và tài khoản ngân hàng. Các cột mã, thuế, điện thoại và tài khoản dùng văn bản để giữ số 0 đầu. |
-| Mau | Mỗi `Loai_HD` một dòng. Thay `<DIEN_ID_DOC_MAU>` bằng ID Google Docs thật, nhập tiền tố như `HDDV`. Có thể thêm loại mua bán và nguyên tắc. Nếu điền `Thu_Muc_Luu_ID`, ứng dụng lưu trực tiếp vào thư mục đó. |
+| Mau | Mỗi `Loai_HD` một dòng. Thay `<DIEN_ID_DOC_MAU>` bằng ID Google Docs thật, nhập tiền tố như `HDDV` hoặc `HDNT`. Nếu điền `Thu_Muc_Luu_ID`, ứng dụng lưu trực tiếp vào thư mục đó. |
 | CauHinh | Điền các khóa bên bán, `NGUOI_DUYET`, `EMAIL_NHAN_NHAC` và `SO_NGAY_NHAC` (mặc định `30,15,7`). Danh sách dùng dấu phẩy. Thay `<DIEN_ID_THU_MUC_GOC>` bằng ID thư mục khi dùng cách lưu theo năm và tên khách hàng. |
-| HopDong | Nhập loại, mã khách, ngày hiệu lực, ngày hết hạn và giá trị VND. Ngày hết hạn phải sau ngày hiệu lực. Có thể nhập ngày ký, điều khoản thanh toán, email người phụ trách và ghi chú. Chừa các trường cấp số, thời điểm tạo và liên kết cho script. |
+| HopDong | Với loại có thời hạn, nhập loại, mã khách, ngày hiệu lực, ngày hết hạn và giá trị VND. Ngày hết hạn phải sau ngày hiệu lực. Có thể nhập ngày ký, điều khoản thanh toán, email người phụ trách và ghi chú. Chừa các trường cấp số, thời điểm tạo và liên kết cho script. |
 | NhatKy | Mỗi thao tác menu và mỗi lần quét ghi thời điểm, email, hành động, số hợp đồng nếu có và kết quả hoặc lỗi. |
 
 ID của mẫu nằm giữa `/document/d/` và `/edit` trên URL. ID thư mục nằm sau `/folders/`. Người tạo hợp đồng cần quyền đọc/sao chép mẫu và quyền tạo tệp ở thư mục đích. Người nhận email cần quyền đọc tệp qua Drive để mở liên kết. Phiên bản này dùng My Drive.
@@ -54,24 +67,25 @@ Trước khi chia sẻ Sheet, chủ sở hữu vào **Dữ liệu → Bảo vệ
 | --- | --- |
 | Hợp đồng | `{{SO_HD}}`, `{{LOAI_HD}}`, `{{NGAY_KY}}`, `{{NGAY_HIEU_LUC}}`, `{{NGAY_HET_HAN}}`, `{{GIA_TRI}}`, `{{GIA_TRI_BANG_CHU}}`, `{{DIEU_KHOAN_THANH_TOAN}}`, `{{NGUOI_PHU_TRACH}}`, `{{TRANG_THAI}}`, `{{GHI_CHU}}` |
 | Khách hàng | `{{MA_KH}}`, `{{TEN_KH}}`, `{{DIA_CHI_KH}}`, `{{MST_KH}}`, `{{DAI_DIEN_KH}}`, `{{CHUC_VU_KH}}`, `{{SDT_KH}}`, `{{EMAIL_KH}}`, `{{TAI_KHOAN_NH_KH}}`. Các tên cột gốc của KhachHang viết hoa cũng dùng được. |
-| Bên bán | `{{TEN_BEN_BAN}}`, `{{MST_BEN_BAN}}`, `{{DIA_CHI_BEN_BAN}}`, `{{DAI_DIEN_BEN_BAN}}`, `{{CHUC_VU_BEN_BAN}}` |
+| Bên bán | `{{TEN_BEN_BAN}}`, `{{MST_BEN_BAN}}`, `{{DIA_CHI_BEN_BAN}}`, `{{DAI_DIEN_BEN_BAN}}`, `{{CHUC_VU_BEN_BAN}}`, `{{SDT_BEN_BAN}}`, `{{TAI_KHOAN_BEN_BAN}}` |
+| HĐNT | `{{UY_QUYEN_KH}}` đặt dưới đại diện bên mua, `{{THAY_DOI}}` đặt tại vị trí ghi thỏa thuận riêng. Nếu phiếu có nội dung ở hai mục này, ứng dụng kiểm tra khóa tương ứng trước khi xuất. `{{NGAY_RA_SOAT}}` dùng khi cần in ngày rà soát. |
 | Mẫu cũ | `{{DIEU_KHOAN_TT}}` cùng lấy giá trị điều khoản thanh toán. |
 
 Tiền được làm tròn đến đồng. Ví dụ, 15.500.000 cho kết quả “Mười lăm triệu năm trăm nghìn đồng”. Ngày được điền theo định dạng ngày/tháng/năm. Chủ mẫu cần kiểm tra chính tả của khóa trong bản PDF nghiệm thu.
 
 ## Tạo, duyệt và xuất lại
 
-1. Chọn một ô trên dòng dữ liệu của **HopDong**. Bấm **Hợp đồng → Tạo hợp đồng từ dòng đang chọn**. Với thư mục mặc định, đường dẫn lưu là `ROOT_FOLDER_ID / năm cấp số / tên khách hàng`. Tên Docs và PDF gồm số hợp đồng và tên khách.
+1. Chọn một ô trên dòng dữ liệu của **HopDong**. Bấm **Hợp đồng → Thao tác trên dòng → Tạo hợp đồng từ dòng đang chọn**. Với thư mục mặc định, đường dẫn lưu là `ROOT_FOLDER_ID / năm cấp số / tên khách hàng`. Tên Docs và PDF gồm số hợp đồng và tên khách.
 2. Mở **Link_Docs** và **Link_PDF** để kiểm tra nội dung. Số có dạng `HDDV-2026-0001`. Một khóa chung bảo vệ bước cấp số, bộ đếm lưu theo tiền tố và năm. Số đã cấp có thể bị khuyết khi gặp lỗi. Khi thử lại, giữ nguyên số trên dòng. Nếu đã ghi link Docs, ứng dụng có thể tiếp tục xuất PDF. Sau lần chạy bị dừng ở giữa, khóa xuất của riêng hợp đồng tự hết hạn sau bảy phút.
 3. **Tạo lại PDF** xuất phiên bản hiện tại của bản Docs đã liên kết và cập nhật **Link_PDF**. Bản PDF trước vẫn nằm trong Drive. Nếu dữ liệu thương mại thay đổi trong lúc còn nháp, cập nhật và đối chiếu cả bản Docs trước khi xuất lại và trình duyệt. Khi lập số mới, dùng dòng mới và để trống số cùng các cột theo dõi.
-4. Dùng menu **Gửi duyệt → Phê duyệt → Đánh dấu đã ký**. Có thể trả về nháp từ Chờ duyệt, hoặc hủy từ Nháp, Chờ duyệt, Đã duyệt. Chỉ email thuộc **NGUOI_DUYET** được duyệt, đánh dấu đã ký hoặc hủy một hợp đồng đã duyệt. Khi duyệt, script khóa các cột nội dung của dòng và giữ quyền cho chủ sở hữu cùng người duyệt. Các cột trạng thái, liên kết và ghi chú là cột vận hành. Chuyển trạng thái qua menu để chạy kiểm tra quyền, tạo vùng khóa và ghi nhật ký. Sửa tay dropdown sẽ bỏ qua các bước đó. Quyền sửa bản Docs và PDF được quản lý riêng trên Drive.
+4. Gửi qua phiếu và duyệt tại **Chờ tôi duyệt**. Sau khi ký, chọn dòng trong **HopDong** rồi bấm **Hợp đồng → Thao tác trên dòng → Đánh dấu đã ký**. Có thể trả về nháp từ Chờ duyệt, hoặc hủy từ Nháp, Chờ duyệt, Đã duyệt. Chỉ email thuộc **NGUOI_DUYET** được duyệt, đánh dấu đã ký hoặc hủy một hợp đồng đã duyệt. Khi duyệt, script khóa các cột nội dung của dòng và giữ quyền cho chủ sở hữu cùng người duyệt. Các cột trạng thái, liên kết và ghi chú là cột vận hành. Chuyển trạng thái qua menu để chạy kiểm tra quyền, tạo vùng khóa và ghi nhật ký. Sửa tay dropdown sẽ bỏ qua các bước đó. Quyền sửa bản Docs và PDF được quản lý riêng trên Drive.
 5. **Mở thư mục lưu** hiển thị liên kết thư mục của hợp đồng. Nếu thao tác báo lỗi, xem **NhatKy** cùng quyền trên mẫu, thư mục và dải ô tương ứng.
 
 ## Cài lịch nhắc
 
 Chủ sở hữu chọn **Hợp đồng → Cài nhắc hạn hàng ngày** hoặc chạy **installDailyTrigger** trong Apps Script. Mục **Triggers** sẽ có một lịch theo ngày cho **runDailyContractScan**, trong khung 8–9 giờ Việt Nam. Cài lại bằng cùng tài khoản sẽ dùng lại lịch chung. Khi đổi chủ sở hữu, chủ cũ xóa lịch của mình trước khi chủ mới cài lại.
 
-Bộ quét chỉ xét hợp đồng **Đã duyệt** hoặc **Đã ký**. Qua ngày hết hạn, trạng thái chuyển thành **Hết hạn**. Đúng ngày khớp một mốc nhắc, hệ thống gom các hợp đồng vào một email HTML kèm liên kết, gửi tới danh sách đã cấu hình. Múi giờ của Sheet và script phải cùng là giờ Việt Nam. Nút **Quét hết hạn** chạy cùng nghiệp vụ ngay lập tức, kể cả bước gửi email. Lịch và menu dùng chung dấu ghi nhận ngày gửi thành công. Nếu thiếu hạn mức, các trạng thái quá hạn vẫn được cập nhật và người vận hành có thể quét lại trong ngày khi đủ hạn mức.
+Bộ quét chỉ xét hợp đồng **Đã duyệt** hoặc **Đã ký**. Với hợp đồng có thời hạn, qua ngày hết hạn, trạng thái chuyển thành **Hết hạn**. Với HĐNT, hệ thống nhắc vào ngày rà soát và các mốc cấu hình trước đó. Dòng HĐNT cũ dùng ngày hết hạn làm mốc nhắc đến khi có ngày rà soát riêng. Đúng ngày khớp một mốc nhắc, hệ thống gom các hợp đồng vào một email HTML kèm liên kết, gửi tới danh sách đã cấu hình. Múi giờ của Sheet và script phải cùng là giờ Việt Nam. Nút **Quét hết hạn** chạy cùng nghiệp vụ ngay lập tức, kể cả bước gửi email. Lịch và menu dùng chung dấu ghi nhận ngày gửi thành công. Nếu thiếu hạn mức, các trạng thái quá hạn vẫn được cập nhật và người vận hành có thể quét lại trong ngày khi đủ hạn mức.
 
 ## Nghiệm thu trên Sheet thử
 

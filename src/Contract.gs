@@ -63,15 +63,15 @@ function folderOfDoc_(url) {
   return parents.next();
 }
 
-function createContract_(ctx) {
+function createContract_(ctx, newEdition) {
   const row = ctx.data;
   if (row.So_HD) {
     locateContract_(ctx.sheet, ctx.map, row.So_HD);
     checkFileIdle_(ctx);
   }
-  if (row.Link_PDF) throw new Error('Dòng này đã có PDF. Hãy dùng Tạo lại PDF.');
+  if (!newEdition && row.Link_PDF) throw new Error('Dòng này đã có PDF. Hãy dùng Tạo lại PDF.');
   if (row.Trang_Thai && row.Trang_Thai !== ST.draft) throw new Error('Chỉ tạo hợp đồng trên dòng nháp.');
-  if (row.Link_Docs && row.So_HD) return regeneratePdf_(ctx);
+  if (!newEdition && row.Link_Docs && row.So_HD) return regeneratePdf_(ctx);
   validateContract_(row);
   const cfg = getConfig();
   const kh = getCustomerInfo_(row.Ma_KH);
@@ -92,11 +92,11 @@ function createContract_(ctx) {
   const customerName = String(kh.Ten_Cong_Ty).trim();
   if (nameCell.getFormula()) row.Ten_KH = customerName;
   else setField_(ctx, 'Ten_KH', customerName);
-  setField_(ctx, 'Gia_Tri_Bang_Chu', docSoThanhChu(row.Gia_Tri));
-  if (!row.Ngay_Tao) setField_(ctx, 'Ngay_Tao', new Date());
+  setField_(ctx, 'Gia_Tri_Bang_Chu', row.Gia_Tri === '' ? '' : docSoThanhChu(row.Gia_Tri));
+  if (!row.Ngay_Tao) setField_(ctx, 'Ngay_Tao', new Date(Math.floor(Date.now()/1000)*1000));
   if (!row.Nguoi_Tao) setField_(ctx, 'Nguoi_Tao', email);
   setField_(ctx, 'Trang_Thai', ST.draft);
-  const name = row.So_HD + ' - ' + row.Ten_KH;
+  const name = row.So_HD + ' - ' + row.Ten_KH + (newEdition ? ' - Trình ' + (Number(row.Phien_Trinh || 0)+1) : '');
   const map = placeholders_(row, kh, cfg);
   reserveFileJob_(ctx);
   return () => {
@@ -145,6 +145,7 @@ function linkFile_(ctx, key, url) {
 function regeneratePdf_(ctx) {
   const row = ctx.data;
   if (!row.So_HD || !row.Link_Docs) throw new Error('Cần có số hợp đồng và bản Docs để tạo lại PDF.');
+  if (row.Trang_Thai === ST.pending) throw new Error('Hồ sơ đang chờ duyệt. Hãy trả về nháp trước khi xuất lại.');
   const file = docFile_(row.Link_Docs);
   const folder = folderOfDoc_(row.Link_Docs);
   reserveFileJob_(ctx);

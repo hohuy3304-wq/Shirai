@@ -50,12 +50,25 @@ function emailList_(s) {
   return [...new Set(String(s || '').toLowerCase().split(',').map(v => v.trim()).filter(Boolean))];
 }
 
+function isHdnt_(type) {
+  return ['hợp đồng nguyên tắc', 'hđnt', 'nguyên tắc'].includes(String(type || '').trim().toLowerCase());
+}
+
 function validateContract_(row) {
+  const framework = isHdnt_(row.Loai_HD);
   if (!String(row.Loai_HD || '').trim()) throw new Error('Hãy chọn Loai_HD.');
   if (!String(row.Ma_KH || '').trim()) throw new Error('Hãy chọn Ma_KH.');
-  if (!Number.isFinite(row.Gia_Tri) || Math.round(row.Gia_Tri) <= 0)
-    throw new Error('Gia_Tri phải là số dương, ít nhất một đồng sau khi làm tròn.');
-  docSoThanhChu(row.Gia_Tri);
+  if (!framework || (row.Gia_Tri !== '' && row.Gia_Tri != null)) {
+    if (!Number.isFinite(row.Gia_Tri) || Math.round(row.Gia_Tri) <= 0)
+      throw new Error('Gia_Tri phải là số dương, ít nhất một đồng sau khi làm tròn.');
+    docSoThanhChu(row.Gia_Tri);
+  }
+  if (framework) {
+    if (!validDate_(row.Ngay_Ky) || !validDate_(row.Ngay_Hieu_Luc)) throw new Error('Hãy nhập ngày ký và ngày hiệu lực.');
+    if (row.Ngay_Ra_Soat && (!validDate_(row.Ngay_Ra_Soat) || dayNumber_(row.Ngay_Ra_Soat) < dayNumber_(row.Ngay_Hieu_Luc)))
+      throw new Error('Ngày rà soát phải từ ngày hiệu lực trở đi.');
+    return;
+  }
   if (!validDate_(row.Ngay_Hieu_Luc) || !validDate_(row.Ngay_Het_Han))
     throw new Error('Hãy nhập Ngay_Hieu_Luc và Ngay_Het_Han bằng ô kiểu ngày.');
   if (dayNumber_(row.Ngay_Het_Han) <= dayNumber_(row.Ngay_Hieu_Luc))

@@ -7,11 +7,11 @@ const SCHEMA = {
   [TAB.config]: ['Key', 'Value', 'Mo_Ta'],
   [TAB.log]: ['Thoi_Gian', 'Nguoi_Dung', 'Hanh_Dong', 'So_HD', 'Ket_Qua']
 };
-const ST = {draft: 'Nháp', pending: 'Chờ duyệt', approved: 'Đã duyệt', signed: 'Đã ký', expired: 'Hết hạn', void: 'Hủy'};
+const ST = {draft: 'Nháp', pending: 'Chờ duyệt', approved: 'Đã duyệt', signed: 'Đã ký', expired: 'Hết hạn', ended: 'Đã chấm dứt', void: 'Hủy'};
 const OMIT_DOC = ['Link_Docs', 'Link_PDF', 'Ngay_Tao', 'Nguoi_Tao'];
 const ALIAS_KH = {Ten_Cong_Ty: 'TEN_KH', Dia_Chi: 'DIA_CHI_KH', MST: 'MST_KH', Nguoi_Dai_Dien: 'DAI_DIEN_KH', Chuc_Vu: 'CHUC_VU_KH', SDT: 'SDT_KH', Email: 'EMAIL_KH', Tai_Khoan_NH: 'TAI_KHOAN_NH_KH'};
 const ALIAS_HD = {Dieu_Khoan_Thanh_Toan: 'DIEU_KHOAN_TT'};
-const SELLER = ['TEN_BEN_BAN', 'MST_BEN_BAN', 'DIA_CHI_BEN_BAN', 'DAI_DIEN_BEN_BAN', 'CHUC_VU_BEN_BAN'];
+const SELLER = ['TEN_BEN_BAN', 'MST_BEN_BAN', 'DIA_CHI_BEN_BAN', 'DAI_DIEN_BEN_BAN', 'CHUC_VU_BEN_BAN', 'SDT_BEN_BAN', 'TAI_KHOAN_BEN_BAN'];
 const DEFAULT_CFG = [
   ...SELLER.map(key => [key, '', 'Thông tin bên bán dùng trong mẫu']),
   ['ROOT_FOLDER_ID', '<DIEN_ID_THU_MUC_GOC>', 'Thư mục My Drive mặc định'],
@@ -99,6 +99,11 @@ function initSheetStructure() {
   if (templates.getLastRow() === 1) {
     appendRecord_(templates, getHeaderIndexMap_(templates), {
       Loai_HD: 'Dịch vụ', ID_Google_Docs_Mau: '<DIEN_ID_DOC_MAU>', Tien_To_So_HD: 'HDDV'
+    });
+  }
+  if (!records_(TAB.templates).some(r => isHdnt_(r.Loai_HD))) {
+    appendRecord_(templates,getHeaderIndexMap_(templates),{
+      Loai_HD:'Hợp đồng nguyên tắc',ID_Google_Docs_Mau:'<DIEN_ID_DOC_MAU>',Tien_To_So_HD:'HDNT'
     });
   }
   const hd = sheet_(TAB.contracts);

@@ -1,19 +1,29 @@
-function moPhieuHopDong() {
+function moPhieuHopDong() { openDesk_('create'); }
+function moHoSoCuaToi() { openDesk_('mine'); }
+function moChoDuyet() { openDesk_('review'); }
+function openDesk_(page) {
+  const template = HtmlService.createTemplateFromFile('BanLamViec');
+  template.startPage = page;
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutputFromFile('Phieu').setWidth(680).setHeight(660), 'Nhập hợp đồng mới'
+    template.evaluate().setWidth(960).setHeight(670), 'Hồng Thiên · Quản lý hợp đồng'
   );
 }
 
 function layDanhMucPhieu() {
   const cfg = getConfig();
+  const email = activeEmail_();
+  const owner = SpreadsheetApp.getActiveSpreadsheet().getOwner();
+  const types = records_(TAB.templates).map(r => String(r.Loai_HD).trim()).filter(Boolean);
   return {
+    frameworkTypes: types.filter(isHdnt_),
+    approver: isApprover_(email, cfg),
+    owner: !!owner && owner.getEmail().toLowerCase() === email,
     seller: [cfg.TEN_BEN_BAN, cfg.MST_BEN_BAN, cfg.DIA_CHI_BEN_BAN, cfg.DAI_DIEN_BEN_BAN, cfg.CHUC_VU_BEN_BAN].filter(Boolean).join(' · '),
-    token: Utilities.getUuid(),
     today: Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'),
-    email: activeEmail_(),
-    types: records_(TAB.templates).map(r => String(r.Loai_HD).trim()).filter(Boolean),
+    email,
+    types,
     customers: records_(TAB.customers).filter(r => r.Ma_KH !== '').map(r => ({
-      code: String(r.Ma_KH).trim(), name: String(r.Ten_Cong_Ty), address: String(r.Dia_Chi), tax: String(r.MST)
+      code: String(r.Ma_KH).trim(), name: String(r.Ten_Cong_Ty), address: String(r.Dia_Chi), tax: String(r.MST), representative:String(r.Nguoi_Dai_Dien), position:String(r.Chuc_Vu)
     }))
   };
 }
@@ -30,10 +40,26 @@ function formData_(form) {
   for (const k of ['Loai_HD','Ma_KH','Noi_Dung_HD','Dieu_Khoan_Thanh_Toan','Nguoi_Phu_Trach','Ghi_Chu']) {
     fields[k] = String(form[k] || '').trim();
   }
-  for (const k of ['Ngay_Ky','Ngay_Hieu_Luc','Ngay_Het_Han']) fields[k] = dateFromForm_(form[k]);
-  const money = String(form.Gia_Tri || '').trim();
-  if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(money)) throw new Error('Nhập số tiền VND nguyên, ví dụ 15500000 hoặc 15.500.000.');
-  fields.Gia_Tri = Number(money.replace(/\./g, ''));
+  const framework = isHdnt_(fields.Loai_HD);
+  fields.Ngay_Ky = dateFromForm_(form.Ngay_Ky);
+  fields.Ngay_Hieu_Luc = framework ? fields.Ngay_Ky : dateFromForm_(form.Ngay_Hieu_Luc);
+  fields.Ngay_Het_Han = framework ? '' : dateFromForm_(form.Ngay_Het_Han);
+  if (framework) {
+    fields.Ngay_Ra_Soat = form.Ngay_Ra_Soat ? dateFromForm_(form.Ngay_Ra_Soat) : '';
+    fields.So_Uy_Quyen = String(form.So_Uy_Quyen || '').trim();
+    fields.Ngay_Uy_Quyen = form.Ngay_Uy_Quyen ? dateFromForm_(form.Ngay_Uy_Quyen) : '';
+    if ((form.Ky_Theo_Uy_Quyen || fields.So_Uy_Quyen || fields.Ngay_Uy_Quyen) && (!fields.So_Uy_Quyen || !fields.Ngay_Uy_Quyen))
+      throw new Error('Khi ký theo ủy quyền, hãy điền cả số và ngày giấy ủy quyền.');
+    fields.Uy_Quyen = fields.So_Uy_Quyen
+      ? 'Theo giấy ủy quyền số ' + fields.So_Uy_Quyen + ' ngày ' + formatDateVi_(fields.Ngay_Uy_Quyen)
+      : String(form.Uy_Quyen || '').trim();
+    fields.Thay_Doi = String(form.Thay_Doi || '').trim();
+    fields.Noi_Dung_HD = 'Ống lõi giấy';
+    fields.Dieu_Khoan_Thanh_Toan = 'Theo Điều IV của mẫu HĐNT';
+  }
+  const money = String(form.Gia_Tri ?? '').trim();
+  if ((!framework || money) && !/^(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(money)) throw new Error('Nhập số tiền VND nguyên, ví dụ 15500000 hoặc 15.500.000.');
+  fields.Gia_Tri = money ? Number(money.replace(/\./g, '')) : '';
   validateContract_(fields);
   if (!fields.Noi_Dung_HD || !fields.Dieu_Khoan_Thanh_Toan) throw new Error('Hãy nhập nội dung hợp đồng và điều khoản thanh toán.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.Nguoi_Phu_Trach)) throw new Error('Email người phụ trách chưa hợp lệ.');
@@ -52,6 +78,7 @@ function formCustomer_(form, code) {
   const customer = {Ma_KH: code};
   SCHEMA[TAB.customers].filter(k => k !== 'Ma_KH').forEach(k => { customer[k] = String(form[k] || '').trim(); });
   if (!customer.Ten_Cong_Ty || !customer.Dia_Chi) throw new Error('Khách hàng mới cần tên và địa chỉ.');
+  validateBuyer_(form.Loai_HD, customer);
   if (customer.MST && rows.some(r => String(r.MST).trim() === customer.MST))
     throw new Error('Mã số thuế đã có trong danh mục. Hãy chọn khách hàng hiện có.');
   const s = sheet_(TAB.customers);
@@ -62,12 +89,18 @@ function formCustomer_(form, code) {
   return customer;
 }
 
-function formRow_(form) {
+function validateBuyer_(type, customer) {
+  const required = ['Ten_Cong_Ty','MST','Dia_Chi','Nguoi_Dai_Dien','Chuc_Vu'];
+  if (isHdnt_(type) && required.some(k => !String(customer[k] || '').trim()))
+    throw new Error('Cần có tên công ty, MST, địa chỉ, đại diện và chức vụ bên mua trong danh mục khách hàng.');
+}
+
+function formRow_(form, creator) {
   const token = String(form.token || '');
   if (!/^[0-9a-f-]{36}$/i.test(token)) throw new Error('Hãy đóng và mở lại phiếu.');
   const sheet = sheet_(TAB.contracts);
   const map = getHeaderIndexMap_(sheet);
-  const additions = ['Noi_Dung_HD', 'Ma_Phieu'].filter(k => !map[k]);
+  const additions = ['Noi_Dung_HD', 'Ma_Phieu'].concat(isHdnt_(form.Loai_HD) ? ['Ngay_Ra_Soat','Uy_Quyen','Thay_Doi','So_Uy_Quyen','Ngay_Uy_Quyen'] : []).filter(k => !map[k]);
   if (additions.length) {
     const col = sheet.getLastColumn() + 1;
     if (col + additions.length - 1 > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), additions.length);
@@ -78,12 +111,14 @@ function formRow_(form) {
   const rows = range.getValues();
   const prior = rows.findIndex(r => r[map.Ma_Phieu - 1] === token);
   if (prior > 0) return rowAt_(sheet, prior + 1);
+  if (creator) readDraft_(form);
   const code = String(form.Ma_KH || 'KH-' + token);
   const fields = formData_({...form, Ma_KH: code});
   const template = getTemplateInfo_(fields.Loai_HD);
   requiredId_(template.ID_Google_Docs_Mau, 'ID_Google_Docs_Mau');
   requiredId_(template.Thu_Muc_Luu_ID || getConfig().ROOT_FOLDER_ID, template.Thu_Muc_Luu_ID ? 'Thu_Muc_Luu_ID' : 'ROOT_FOLDER_ID');
   const customer = formCustomer_(form, code);
+  validateBuyer_(fields.Loai_HD, customer);
   const formulas = range.getFormulas();
   // Tìm dòng trống thật sự, bỏ qua công thức tra tên được khởi tạo sẵn.
   let i = rows.findIndex((r, idx) => idx > 0 && r.every((v,j) =>
@@ -92,6 +127,7 @@ function formRow_(form) {
   if (i >= sheet.getMaxRows()) sheet.insertRowAfter(sheet.getMaxRows());
   const values = Array(range.getNumColumns()).fill('');
   Object.assign(fields, {Ma_Phieu: token, Trang_Thai: ST.draft, Ten_KH: customer.Ten_Cong_Ty});
+  if (creator) fields.Nguoi_Tao = creator;
   Object.keys(fields).forEach(k => { values[map[k]-1] = literalCell_(fields[k]); });
   const nameFormula = formulas[i] && formulas[i][map.Ten_KH - 1];
   if (nameFormula) values[map.Ten_KH - 1] = nameFormula;
@@ -139,7 +175,7 @@ function chuanBiHopDong() {
     const map = getHeaderIndexMap_(templates);
     const created = [];
     records_(TAB.templates).forEach((r,i) => {
-      if (!r.Loai_HD || (r.ID_Google_Docs_Mau && r.ID_Google_Docs_Mau !== '<DIEN_ID_DOC_MAU>')) return;
+      if (!r.Loai_HD || isHdnt_(r.Loai_HD) || (r.ID_Google_Docs_Mau && r.ID_Google_Docs_Mau !== '<DIEN_ID_DOC_MAU>')) return;
       const doc = DocumentApp.create('Mẫu hợp đồng – ' + r.Loai_HD);
       const body = doc.getBody();
       body.appendParagraph('HỢP ĐỒNG {{LOAI_HD}}').setHeading(DocumentApp.ParagraphHeading.TITLE);
@@ -158,6 +194,6 @@ function chuanBiHopDong() {
       created.push(r.Loai_HD);
     });
     return (created.length ? 'Đã tạo mẫu tham khảo: ' + created.join(', ') + '. ' : '') +
-      'Hãy kiểm tra thông tin bên bán trong CauHinh và nội dung mẫu trước khi ký. Chọn Hợp đồng → Nhập hợp đồng mới để nhập liệu.';
+      'Hãy kiểm tra thông tin bên bán trong CauHinh. Với HĐNT, điền liên kết mẫu trong Thiết lập. Chọn Hợp đồng → Tạo hợp đồng để nhập liệu.';
   }, {menu:true});
 }

@@ -3,12 +3,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
+const crypto = require('node:crypto');
 
 function runtime(services = {}) {
   const src = path.join(__dirname, '../src');
   const context = vm.createContext({
     console,
     Utilities: {
+      DigestAlgorithm: {SHA_256: 'sha256'}, Charset: {UTF_8: 'utf8'},
+      getUuid: crypto.randomUUID,
+      newBlob: value => ({getBytes: () => Buffer.from(value)}),
+      computeDigest: (algorithm,value) => crypto.createHash(algorithm).update(value).digest(),
+      base64EncodeWebSafe: bytes => Buffer.from(bytes).toString('base64url'),
       formatDate(date, zone, pattern) {
         const iso = new Intl.DateTimeFormat('sv-SE', {timeZone: zone}).format(date);
         if (pattern === 'yyyy') return iso.slice(0, 4);
@@ -30,6 +36,7 @@ function properties() {
   return {
     getProperty: k => values.get(k) ?? null,
     setProperty: (k, v) => values.set(k, v),
+    getProperties: () => Object.fromEntries(values),
     deleteProperty: k => values.delete(k)
   };
 }
@@ -216,6 +223,9 @@ test('Điền mẫu có tab con, đầu và chân trang rồi đóng Docs trư�
     assert.equal(part.footer.text.getText(), '');
   }
   assert.deepEqual(events, ['closed', 'linked', 'pdf']);
+  copy.setTrashed=()=>events.push('trashed');
+  assert.throws(()=>c.fillTemplateAndExportPdf_('test', {}, 'HD', {THAY_DOI:'Giao trước 10 giờ'}, ()=>{}), /thiếu {{THAY_DOI}}/);
+  assert.equal(events.at(-1),'trashed');
 });
 
 test('Phiếu nhận link Google, kiểm tra ngày và tiền trước khi ghi', () => {
@@ -267,4 +277,101 @@ test('Gửi lại cùng phiếu dùng dòng cũ, giữ dòng nhập tay và côn
   assert.equal(writes,1);
   assert.equal(exports,2);
   assert.equal(rows[1][map.Ghi_Chu-1],'Nhập dở');
+});
+
+test('HĐNT theo đơn hàng, ký theo ủy quyền và rà soát gia hạn', () => {
+  const c = runtime();
+  const form = {Loai_HD:'HĐNT',Ma_KH:'001',Ngay_Ky:'2026-11-21',Nguoi_Phu_Trach:'a@example.com'};
+  const fields = c.formData_({...form,So_Uy_Quyen:'15/UQ',Ngay_Uy_Quyen:'2026-10-05'});
+  assert.equal(fields.Gia_Tri,'');
+  assert.equal(fields.Ngay_Het_Han,'');
+  assert.equal(fields.Ngay_Hieu_Luc.getTime(),fields.Ngay_Ky.getTime());
+  assert.match(fields.Uy_Quyen,/15\/UQ ngày 05\/10\/2026/);
+  assert.throws(()=>c.formData_({...form,So_Uy_Quyen:'15/UQ'}),/số và ngày/);
+  assert.throws(()=>c.formData_({...form,Ngay_Ra_Soat:'2026-11-20'}),/rà soát/);
+  assert.throws(()=>c.validateBuyer_('HĐNT',{Ten_Cong_Ty:'A'}),/đại diện/);
+  assert.throws(()=>c.formData_({...form,Loai_HD:'Dịch vụ'}));
+  const dates=['2026-11-20','2026-11-21','2026-11-28'].map(s=>c.dateFromForm_(s));
+  const hd=['So_HD','Trang_Thai','Loai_HD','Ngay_Ra_Soat','Ngay_Het_Han'], map=Object.fromEntries(hd.map((k,i)=>[k,i+1]));
+  const data=[['NT1','Đã ký','HĐNT',dates[0],''],['NT2','Đã duyệt','Nguyên tắc',dates[2],dates[0]],
+    ['NT3','Đã ký','Hợp đồng nguyên tắc','',dates[1]],['DV1','Đã ký','Dịch vụ','',dates[0]],['NT4','Đã chấm dứt','HĐNT',dates[1],'']];
+  const scan=c.scanRows_(data,map,c.dayNumber_(dates[1]),new Set([7]));
+  assert.deepEqual(Array.from(scan.expired,r=>r.number),['DV1']);
+  assert.deepEqual(Array.from(scan.due,r=>r.contract.So_HD),['NT2','NT3']);
+});
+
+test('Nháp riêng từng tài khoản, chống ghi đè và xóa nháp cũ', () => {
+  const stores = {a:properties(),b:properties()};
+  let actor='a';
+  const c=runtime({PropertiesService:{getUserProperties:()=>stores[actor]}});
+  Object.assign(c,{withLock_:f=>f(),appendLog_(){},records_:()=>[],activeEmail_:()=>actor,isApprover_:()=>false});
+  const initial={token:crypto.randomUUID(),Loai_HD:'HĐNT'};
+  const version=c.luuNhapCaNhan({...initial});
+  assert.equal(c.danhSachHoSo('mine').drafts[0].draftVersion,version);
+  assert.throws(()=>c.luuNhapCaNhan({...initial}),/thay đổi/);
+  const latest=c.luuNhapCaNhan({...initial,draftVersion:version});
+  actor='b';
+  assert.equal(c.danhSachHoSo('mine').drafts.length,0);
+  assert.throws(()=>c.danhSachHoSo('review'),/NGUOI_DUYET/);
+  actor='a';
+  assert.throws(()=>c.xoaNhapCaNhan(initial.token,version),/thay đổi/);
+  c.xoaNhapCaNhan(initial.token,latest);
+  assert.equal(c.danhSachHoSo('mine').drafts.length,0);
+});
+
+test('Trình, trả về, trình lần hai và duyệt đúng bản PDF khi nhiều người cùng mở', () => {
+  const store=properties(),logs=[], exported=[];
+  const creator='lap@example.com', reviewer='duyet@example.com';
+  let actor=creator;
+  const c=runtime({PropertiesService:{getUserProperties:()=>store}});
+  const sheet={getRange:()=>({getFormula:()=>''})};
+  const ctx={row:2,map:{},sheet,data:{Trang_Thai:'Nháp',Nguoi_Tao:creator,Loai_HD:'HĐNT',Ma_KH:'K'}};
+  Object.assign(c,{
+    withLock_:f=>f(),appendLog_:(...args)=>logs.push(args),dossierAt_:()=>ctx,formRow_:()=>ctx,activeEmail_:()=>actor,
+    records_:()=>[ctx.data],getConfig:()=>({NGUOI_DUYET:reviewer}),checkFileIdle_(){},releaseFileJob_(){},
+    formCustomer_:()=>({Ten_Cong_Ty:'A',MST:'01',Dia_Chi:'HCM',Nguoi_Dai_Dien:'B',Chuc_Vu:'GĐ'}),
+    addFields_(){},setField_:(r,k,v)=>{r.data[k]=v;},khoaDongHopDong_(){},
+    createContract_(r){
+      r.data.So_HD='HDNT-2026-0001';
+      return ()=>{
+        exported.push('https://drive.google.com/pdf'+(exported.length+1));
+        r.data.Link_Docs='https://docs.google.com/document/d/test/edit';
+        r.data.Link_PDF=exported.at(-1);
+      };
+    }
+  });
+  const first={token:crypto.randomUUID(),Loai_HD:'HĐNT',Ma_KH:'K',Ngay_Ky:'2026-11-21',Nguoi_Phu_Trach:creator};
+  const result=c.guiPhieuDeDuyet(first);
+  assert.equal(c.guiPhieuDeDuyet(first).pdf,result.pdf);
+  assert.equal(ctx.data.Trang_Thai,'Chờ duyệt');
+  const v1=c.revision_(ctx.data);
+  actor='other@example.com';
+  assert.equal(c.danhSachHoSo('mine').rows.length,0);
+  assert.throws(()=>c.guiPhieuDeDuyet(first),/thuộc người phụ trách khác/);
+  assert.throws(()=>c.xuLyHoSo(result.number,v1,'approve',''),/quyền duyệt/);
+  actor=reviewer;
+  assert.equal(c.danhSachHoSo('review').rows[0].pdf,exported[0]);
+  assert.throws(()=>c.xuLyHoSo(result.number,v1,'return',''),/lý do/);
+  c.xuLyHoSo(result.number,v1,'return','Bổ sung thỏa thuận');
+  assert.throws(()=>c.xuLyHoSo(result.number,v1,'approve',''),/đã thay đổi/);
+  actor=creator;
+  assert.throws(()=>c.guiPhieuDeDuyet(first),/đã được trình/);
+  const returned=c.danhSachHoSo('mine').rows[0];
+  assert.equal(returned.reason,'Bổ sung thỏa thuận');
+  const second={...first,token:crypto.randomUUID(),number:result.number,version:returned.version,Thay_Doi:'Giao buổi sáng'};
+  c.guiPhieuDeDuyet(second);
+  assert.equal(ctx.data.Phien_Trinh,2);
+  assert.equal(exported.length,2);
+  assert.ok(logs.some(log=>log.includes('Bản 1 · '+exported[0])));
+  assert.ok(logs.some(log=>log.includes('Bản 2 · '+exported[1])));
+  actor=reviewer;
+  ctx.data.Thay_Doi='thay đổi trực tiếp sau khi trình';
+  assert.throws(()=>c.xuLyHoSo(result.number,c.revision_(ctx.data),'approve',''),/Nội dung đã đổi/);
+  ctx.data.Thay_Doi=second.Thay_Doi;
+  c.xuLyHoSo(result.number,c.revision_(ctx.data),'approve','');
+  assert.equal(ctx.data.Trang_Thai,'Đã duyệt');
+  actor=creator;
+  c.xuLyHoSo(result.number,c.revision_(ctx.data),'end','Thông báo chấm dứt số 12');
+  assert.equal(ctx.data.Trang_Thai,'Đã chấm dứt');
+  assert.equal(ctx.data.Can_Cu_Cham_Dut,'Thông báo chấm dứt số 12');
 });
