@@ -22,7 +22,7 @@ Trên Sheet và thư mục thử, tài khoản A lưu nháp, mở lại và gử
 
 | Người dùng | Thao tác |
 | --- | --- |
-| Người lập | Trên web app chọn **Tạo hợp đồng**. Tìm bên mua theo tên, mã hoặc MST. Có thể thêm khách hàng ngay trên phiếu. Kiểm tra tên pháp nhân, MST, địa chỉ, người đại diện và chức vụ. |
+| Người lập | Trên web app chọn **Tạo hợp đồng**. Gõ tên có dấu hoặc không dấu, mã khách hoặc MST. Kiểm tra tên pháp nhân và MST rồi chọn bên mua. Với khách cũ thiếu thông tin, điền các ô hiện trên phiếu. Với khách mới, bấm **Thêm khách hàng**. Nếu MST đã có, bấm **Dùng khách hàng này**. Điện thoại, email và tài khoản ngân hàng nằm trong **Thông tin bổ sung**. |
 | Người lập | Điền ngày ký và người phụ trách. Ngày ký cũng là ngày hiệu lực. Nếu ký theo ủy quyền, điền số và ngày giấy ủy quyền. Điền ngày rà soát nếu muốn nhận nhắc. Giá trị tổng có thể để trống khi đơn giá theo từng đơn hàng. |
 | Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Quản lý hợp đồng**. Dữ liệu phiếu được lưu vào tab **BanNhap**. |
 | Người lập | **Tạo và gửi duyệt** cấp số, lưu Docs và PDF, chuyển sang **Chờ duyệt**. Nếu bị trả về, mở **Quản lý hợp đồng → Sửa và trình duyệt**, sửa theo lý do rồi gửi lại. Số hợp đồng giữ nguyên và mỗi lần trình có PDF riêng. |

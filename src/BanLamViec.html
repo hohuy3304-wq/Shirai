@@ -154,6 +154,11 @@
       [hidden] {
         display: none !important;
       }
+      #buyerOptions { max-height: 14rem; overflow-y: auto; border: 1px solid #9eb2af; background: white; }
+      #buyerOptions [role=option] { padding: 9px; cursor: pointer; overflow-wrap: anywhere; }
+      #buyerOptions [aria-selected=true], #buyerOptions [role=option]:hover { background: #dceeea; }
+      #newCustomer, #taxMatch { margin-top: 12px; }
+      #newCustomer details .grid { margin-top: 10px; }
       .page-head, .toolbar {
         display: flex;
         align-items: center;
@@ -215,18 +220,31 @@
             <legend>Khách hàng</legend>
             <div class="grid">
               <label>Loại hợp đồng<select name="Loai_HD" required></select></label>
-              <label>Tìm theo tên, mã hoặc MST<input id="search" type="search" /></label>
-              <label class="full">Khách hàng<select name="Ma_KH"></select></label>
-              <small id="summary" class="full"></small>
+              <div id="buyerPicker">
+                <label for="search">Khách hàng</label>
+                <input id="search" type="search" role="combobox" aria-controls="buyerOptions"
+                  aria-expanded="false" aria-autocomplete="list" autocomplete="off" placeholder="Tên, mã khách hoặc mã số thuế" />
+                <div id="buyerOptions" role="listbox" aria-label="Khách hàng tìm thấy" hidden></div>
+                <small id="noBuyer" role="status" hidden>Không tìm thấy khách hàng phù hợp.</small>
+              </div>
+              <input type="hidden" name="Ma_KH" />
+              <div><button id="addBuyer" type="button">Thêm khách hàng</button>
+              <button id="changeBuyer" type="button" hidden>Chọn khách hàng khác</button></div>
+              <small id="summary" class="full" aria-live="polite"></small>
             </div>
             <div id="newCustomer" class="grid" hidden>
-              <label>Tên khách hàng<input name="Ten_Cong_Ty" /></label
-              ><label>Địa chỉ<input name="Dia_Chi" /></label> <label>Mã số thuế<input name="MST" /></label
-              ><label>Người đại diện<input name="Nguoi_Dai_Dien" /></label
-              ><label>Chức vụ<input name="Chuc_Vu" /></label><label>Điện thoại<input name="SDT" /></label>
-              <label>Email khách hàng<input name="Email" type="email" /></label
-              ><label>Tài khoản ngân hàng<input name="Tai_Khoan_NH" /></label>
+              <label>Tên khách hàng<input name="Ten_Cong_Ty" /></label>
+              <label>Mã số thuế<input name="MST" /></label>
+              <label>Địa chỉ<input name="Dia_Chi" /></label>
+              <label>Người đại diện<input name="Nguoi_Dai_Dien" /></label>
+              <label>Chức vụ<input name="Chuc_Vu" /></label>
+              <details class="full"><summary>Thông tin bổ sung</summary><div class="grid">
+                <label>Điện thoại<input name="SDT" type="tel" /></label>
+                <label>Email khách hàng<input name="Email" type="email" /></label>
+                <label>Tài khoản ngân hàng<input name="Tai_Khoan_NH" /></label>
+              </div></details>
             </div>
+            <div id="taxMatch" aria-live="polite" hidden></div>
           </fieldset>
           <fieldset>
             <legend>Thông tin ký kết</legend>
@@ -424,34 +442,134 @@
         toggleAuthority();
         updateCustomer();
       }
-      function updateCustomer() {
-        const c = catalog.customers.find((c) => c.code === fields.Ma_KH.value);
-        $('newCustomer').hidden = !!c;
-        for (const input of $('newCustomer').querySelectorAll('input')) input.disabled = !!c;
-        for (const k of ['Ten_Cong_Ty', 'Dia_Chi']) fields[k].required = !c;
-        for (const k of ['MST', 'Nguoi_Dai_Dien', 'Chuc_Vu'])
-          fields[k].required = !c && catalog.frameworkTypes.includes(fields.Loai_HD.value);
-        $('summary').textContent = c
-          ? [c.tax, c.address, c.representative, c.position].filter(Boolean).join(' · ')
-          : 'Khách hàng mới sẽ được lưu vào danh mục khi gửi hồ sơ.';
+      const buyerInputs = [...$('newCustomer').querySelectorAll('input')];
+      const buyerSearch = $('search');
+      const buyerOptions = $('buyerOptions');
+      let newBuyer = false;
+      let activeOption = -1;
+      function searchKey(value) {
+        return String(value || '').trim().toLocaleLowerCase('vi').normalize('NFD').replace(/\p{M}/gu,'').replace(/đ/g,'d');
       }
-      function customers(query, chosen) {
-        const q = query.toLocaleLowerCase('vi').trim();
-        fields.Ma_KH.replaceChildren();
-        for (const c of catalog.customers.filter((c) =>
-          [c.name, c.code, c.tax].some((v) => v.toLowerCase().includes(q))
-        ))
-          fields.Ma_KH.add(new Option(c.name + ' · ' + c.code, c.code));
-        fields.Ma_KH.add(new Option('Thêm khách hàng mới…', ''));
-        if ([...fields.Ma_KH.options].some((o) => o.value === chosen)) fields.Ma_KH.value = chosen;
+      function matchesBuyer(customer,term) {
+        return [customer.name,customer.code,customer.tax].some(value => searchKey(value).includes(term));
+      }
+      function selectedBuyer() {
+        return catalog.customers.find(customer => customer.code === fields.Ma_KH.value);
+      }
+      function closeBuyerOptions() {
+        buyerOptions.hidden = $('noBuyer').hidden = true;
+        buyerSearch.setAttribute('aria-expanded','false');
+        buyerSearch.removeAttribute('aria-activedescendant');
+        activeOption = -1;
+      }
+      function buyerLabel(c) {
+        return [c.name, c.tax ? 'MST ' + c.tax : 'Chưa có MST', c.code].join(' · ');
+      }
+      function chooseBuyer(customer,create = false) {
+        for (const input of buyerInputs) input.value = '';
+        fields.Ma_KH.value = customer?.code || '';
+        buyerSearch.value = customer ? buyerLabel(customer) : '';
+        newBuyer = create;
+        closeBuyerOptions();
         updateCustomer();
+        dirty = true;
       }
+      function renderBuyerOptions() {
+        const term = searchKey(buyerSearch.value);
+        closeBuyerOptions();
+        buyerOptions.replaceChildren();
+        for (const c of catalog.customers.filter(c => matchesBuyer(c,term)).slice(0,40)) {
+          const option = el('div',buyerLabel(c));
+          option.id = 'buyer-option-' + buyerOptions.childElementCount;
+          option.setAttribute('role','option');
+          option.setAttribute('aria-selected','false');
+          option.onmousedown = e => e.preventDefault();
+          option.onclick = () => { chooseBuyer(c); buyerSearch.focus(); closeBuyerOptions(); };
+          buyerOptions.append(option);
+        }
+        buyerOptions.hidden = !buyerOptions.childElementCount;
+        $('noBuyer').hidden = !buyerOptions.hidden;
+        buyerSearch.setAttribute('aria-expanded',String(!buyerOptions.hidden));
+      }
+      function checkBuyerTax() {
+        const field = fields.MST, box = $('taxMatch');
+        field.setCustomValidity('');
+        box.replaceChildren();
+        const tax = field.value.trim();
+        const matches = !field.disabled && tax ? catalog.customers.filter(c => c.tax === tax && c.code !== fields.Ma_KH.value) : [];
+        box.hidden = !matches.length;
+        if (!matches.length) return;
+        field.setCustomValidity('Mã số thuế đã có trong danh mục.');
+        for (const c of matches) {
+          box.append(el('p',buyerLabel(c)));
+          addButton(box,'Dùng khách hàng này', () => chooseBuyer(c));
+        }
+      }
+      function updateCustomer() {
+        const c = selectedBuyer();
+        const required = catalog.frameworkTypes.includes(fields.Loai_HD.value)
+          ? ['Ten_Cong_Ty','MST','Dia_Chi','Nguoi_Dai_Dien','Chuc_Vu'] : ['Ten_Cong_Ty','Dia_Chi'];
+        const missing = c ? required.filter(key => !c.fields[key]) : [];
+        $('newCustomer').hidden = !newBuyer && !missing.length;
+        $('newCustomer').querySelector('details').hidden = !newBuyer;
+        for (const input of buyerInputs) {
+          const show = newBuyer || missing.includes(input.name);
+          input.closest('label').hidden = !show;
+          input.disabled = !show;
+          input.required = show && required.includes(input.name);
+        }
+        $('buyerPicker').hidden = newBuyer;
+        $('changeBuyer').hidden = !newBuyer;
+        $('addBuyer').hidden = newBuyer;
+        buyerSearch.disabled = newBuyer;
+        buyerSearch.setCustomValidity(!newBuyer && !c ? 'Hãy chọn khách hàng trong kết quả hoặc bấm Thêm khách hàng.' : '');
+        $('summary').textContent = c
+          ? [c.address,c.representative,c.position, missing.length && 'Bổ sung thông tin còn thiếu bên dưới để gửi duyệt.'].filter(Boolean).join(' · ')
+          : newBuyer ? 'Khách hàng mới sẽ được lưu vào danh mục khi gửi hồ sơ.' : '';
+        checkBuyerTax();
+      }
+      buyerSearch.onfocus = () => { if (!selectedBuyer()) renderBuyerOptions(); };
+      buyerSearch.onblur = closeBuyerOptions;
+      buyerSearch.oninput = () => {
+        if (fields.Ma_KH.value) {
+          for (const input of buyerInputs) input.value = '';
+          fields.Ma_KH.value = '';
+        }
+        updateCustomer();
+        renderBuyerOptions();
+      };
+      buyerSearch.onkeydown = e => {
+        if (e.isComposing) return;
+        if (e.key === 'Escape') { closeBuyerOptions(); return; }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (!buyerOptions.hidden && (activeOption >= 0 || buyerOptions.childElementCount === 1))
+            buyerOptions.children[Math.max(0,activeOption)].click();
+          return;
+        }
+        if (!['ArrowDown','ArrowUp'].includes(e.key)) return;
+        e.preventDefault();
+        if (buyerOptions.hidden) renderBuyerOptions();
+        const options = [...buyerOptions.children];
+        if (!options.length) return;
+        activeOption = e.key === 'ArrowDown' ? Math.min(activeOption+1,options.length-1) : Math.max(activeOption-1,0);
+        options.forEach((node,i) => node.setAttribute('aria-selected',String(i === activeOption)));
+        buyerSearch.setAttribute('aria-activedescendant',options[activeOption].id);
+        options[activeOption].scrollIntoView({block:'nearest'});
+      };
+      $('addBuyer').onclick = () => { chooseBuyer(null,true); fields.Ten_Cong_Ty.focus(); };
+      $('changeBuyer').onclick = () => { chooseBuyer(null); buyerSearch.focus(); };
+      fields.MST.oninput = checkBuyerTax;
+      document.addEventListener('invalid', e => {
+        const more = e.target.closest('details');
+        if (more) more.open = true;
+      }, true);
       function edit(data = {}) {
         page = 'create';
         section('form');
         form.reset();
         fields.Loai_HD.disabled = false;
-        form.querySelector('details').open = false;
+        form.querySelectorAll('details').forEach(detail => { detail.open = false; });
         meta = {
           token: data.token || crypto.randomUUID(),
           draftVersion: data.draftVersion || '',
@@ -459,10 +577,19 @@
           version: data.version || ''
         };
         fields.Loai_HD.value = data.Loai_HD || catalog.frameworkTypes[0] || catalog.types[0] || '';
-        customers('', data.Ma_KH);
+        const saved = catalog.customers.find(c => c.code === data.Ma_KH);
+        const legacyNew = !data.buyerMode && !data.Ma_KH && buyerInputs.some(input => data[input.name]);
+        chooseBuyer(saved, !data.Ma_KH && (data.buyerMode === 'new' || legacyNew));
         fields.Nguoi_Phu_Trach.value = catalog.email;
         fields.Ngay_Ky.value = fields.Ngay_Hieu_Luc.value = catalog.today;
-        for (const [k, v] of Object.entries(data)) if (fields.namedItem(k)) fields[k].value = v ?? '';
+        for (const [k,v] of Object.entries(data)) {
+          if (k !== 'Ma_KH' && fields.namedItem(k)) fields[k].value = v ?? '';
+        }
+        for (const input of buyerInputs) {
+          if (saved && data.buyerSupplement) input.value = data.buyerSupplement[input.name] || '';
+        }
+        if (newBuyer && [fields.SDT,fields.Email,fields.Tai_Khoan_NH].some(input => input.value))
+          $('newCustomer').querySelector('details').open = true;
         $('seller').textContent = catalog.seller ? 'Bên bán · ' + catalog.seller : '';
         $('byProxy').checked = !!(
           data.Ky_Theo_Uy_Quyen ||
@@ -471,7 +598,7 @@
           data.Uy_Quyen
         );
         if (data.Uy_Quyen && !data.So_Uy_Quyen) fields.So_Uy_Quyen.value = data.Uy_Quyen;
-        if (data.Thay_Doi) form.querySelector('details').open = true;
+        if (data.Thay_Doi) form.querySelector('details[data-framework]').open = true;
         fields.Loai_HD.disabled = !!meta.number;
         updateType();
         dirty = false;
@@ -480,6 +607,9 @@
       function payload() {
         return {
           ...Object.fromEntries(new FormData(form)),
+          buyerMode: newBuyer ? 'new' : fields.Ma_KH.value ? 'existing' : 'choose',
+          buyerSupplement: fields.Ma_KH.value && buyerInputs.some(input => !input.disabled)
+            ? Object.fromEntries(buyerInputs.filter(input => !input.disabled).map(input => [input.name,input.value])) : null,
           Loai_HD: fields.Loai_HD.value,
           Uy_Quyen: '',
           ...meta
@@ -536,9 +666,9 @@
         box.replaceChildren(toolbar, results);
         function render() {
           results.replaceChildren();
-          const term = query.value.trim().toLocaleLowerCase('vi');
+          const term = searchKey(query.value);
           for (const customer of catalog.customers) {
-            if (![customer.name,customer.code,customer.tax].some(v => v.toLocaleLowerCase('vi').includes(term))) continue;
+            if (!matchesBuyer(customer,term)) continue;
             const card = el('section','');
             card.className = 'card';
             card.append(el('h3',customer.name),el('p',[customer.code, customer.tax && 'MST ' + customer.tax, customer.address].filter(Boolean).join(' · ')));
@@ -561,7 +691,9 @@
         const grid = $('newCustomer').cloneNode(true);
         grid.removeAttribute('id');
         grid.hidden = false;
+        grid.querySelector('details').hidden = false;
         for (const field of grid.querySelectorAll('input')) {
+          field.closest('label').hidden = false;
           field.disabled = false;
           field.required = ['Ten_Cong_Ty','Dia_Chi'].includes(field.name);
           field.value = customer?.fields[field.name] || '';
@@ -737,8 +869,6 @@
       form.oninput = () => (dirty = true);
       $('byProxy').onchange = toggleAuthority;
       fields.Loai_HD.onchange = updateType;
-      fields.Ma_KH.onchange = updateCustomer;
-      $('search').oninput = () => customers($('search').value, fields.Ma_KH.value || undefined);
       $('save').onclick = () =>
         task(async () => {
           meta.draftVersion = await api('luuNhapCaNhan', payload());
@@ -751,8 +881,20 @@
         task(async () => {
           $('message').textContent = 'Đang tạo tệp và gửi duyệt…';
           const submitted = payload();
-          const result = await api('guiPhieuDeDuyet', submitted);
-          refreshCatalog = !submitted.Ma_KH;
+          let result;
+          try {
+            result = await api('guiPhieuDeDuyet', submitted);
+          } catch (error) {
+            if (/Mã số thuế đã có|Đồng nghiệp đã cập nhật|Cần đúng một khách hàng/.test(error.message)) {
+              catalog = await api('layDanhMucPhieu');
+              const current = selectedBuyer();
+              if (current) buyerSearch.value = buyerLabel(current);
+              else if (fields.Ma_KH.value) chooseBuyer(null);
+              updateCustomer();
+            }
+            throw error;
+          }
+          refreshCatalog = !submitted.Ma_KH || !!submitted.buyerSupplement;
           dirty = false;
           section('');
           $('message').textContent = 'Đã gửi duyệt ' + result.number + '.';

@@ -610,5 +610,16 @@ test('Danh mục khách hàng giữ mã, số 0 đầu, cột riêng và phát h
   assert.equal(saved.address,'Đà Nẵng');
   assert.equal(saved.tax,'0012');
   assert.equal(saved.code,original.code);
+  const complete = {Ma_KH:saved.code, Loai_HD:'HĐNT', buyerSupplement:{Nguoi_Dai_Dien:'An',Chuc_Vu:'Giám đốc'}};
+  assert.equal(c.formCustomer_(complete,saved.code).MST,'0012');
+  assert.equal(c.formCustomer_(complete,saved.code).Chuc_Vu,'Giám đốc');
+  assert.throws(() => c.formCustomer_({...complete,buyerSupplement:{Chuc_Vu:'Quản lý'}},saved.code),/Đồng nghiệp/);
+  assert.throws(() => c.formCustomer_({buyerMode:'choose'},'unused'),/chọn khách hàng/);
+  assert.equal(c.customerCard_(c.records_()[0]).fields.Chuc_Vu,'Giám đốc');
+  const second = {...form, MST:'', Ten_Cong_Ty:'Công ty khác'};
+  const secondToken = crypto.randomUUID(), secondCode = 'KH-' + secondToken;
+  c.luuKhachHang(second,'','',secondToken);
+  assert.throws(() => c.formCustomer_({...complete,Ma_KH:secondCode,buyerSupplement:{...complete.buyerSupplement,MST:'0012'}},secondCode),/Mã số thuế đã có/);
+  assert.equal(c.customerCard_(c.records_()[1]).fields.Nguoi_Dai_Dien,'');
   assert.equal(rows[0][2],'giữ nguyên');
 });

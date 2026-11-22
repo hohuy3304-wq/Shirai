@@ -76,7 +76,24 @@ function literalCell_(v) {
 }
 
 function formCustomer_(form, code) {
-  if (form.Ma_KH) return getCustomerInfo_(code);
+  if (form.Ma_KH) {
+    if (!form.buyerSupplement) return getCustomerInfo_(code);
+    const rows = records_(TAB.customers);
+    const index = customerIndex_(rows, code);
+    const current = customerCard_(rows[index]).fields;
+    const updated = {...current};
+    for (const key of ['Ten_Cong_Ty','Dia_Chi','MST','Nguoi_Dai_Dien','Chuc_Vu']) {
+      const value = String(form.buyerSupplement[key] || '').trim();
+      if (!value) continue;
+      if (current[key] && current[key] !== value)
+        throw new Error('Đồng nghiệp đã cập nhật thông tin bên mua. Hãy đối chiếu lại khách hàng trên phiếu.');
+      updated[key] = value;
+    }
+    const valid = customerInput_({...updated, Loai_HD:form.Loai_HD}, code, rows);
+    writeCustomerChanges_(index,current,valid);
+    return valid;
+  }
+  if (form.buyerMode && form.buyerMode !== 'new') throw new Error('Hãy chọn khách hàng hoặc bấm Thêm khách hàng.');
   const rows = records_(TAB.customers);
   const saved = rows.find(r => String(r.Ma_KH) === code);
   if (saved) return saved;
@@ -115,24 +132,30 @@ function luuKhachHang(form, code, version, token) {
       return 'Đã lưu khách hàng ' + created.Ten_Cong_Ty;
     }
     const rows = records_(TAB.customers);
-    const matches = rows.map((r,i)=>({r,i})).filter(x => String(x.r.Ma_KH).trim() === code);
-    if (matches.length !== 1) throw new Error('Mã khách hàng không còn duy nhất. Hãy tải lại danh mục.');
-    const {r,i} = matches[0];
+    const index = customerIndex_(rows,code);
+    const current = customerCard_(rows[index]);
     const values = customerInput_(form,code,rows);
-    const updated = customerCard_(values).version;
-    const current = customerCard_(r).version;
-    if (current !== updated && current !== version) throw new Error('Khách hàng đã thay đổi. Hãy mở lại để cập nhật.');
-    if (current !== updated) {
-      const sheet = sheet_(TAB.customers), map = getHeaderIndexMap_(sheet);
-      const changes = SCHEMA[TAB.customers].filter(k => k !== 'Ma_KH' && String(r[k] ?? '').trim() !== values[k]);
-      // Chỉ ghi các cột đã sửa, giữ nguyên công thức và cột riêng của sổ cũ.
-      for (const {start,width} of coreSpans_(changes.map(k=>map[k]))) {
-        const keys = changes.filter(k=>map[k]>=start && map[k]<start+width).sort((a,b)=>map[a]-map[b]);
-        sheet.getRange(i+2,start,1,width).setValues([keys.map(k=>literalCell_(values[k]))]);
-      }
-    }
+    if (current.version !== customerCard_(values).version && current.version !== version)
+      throw new Error('Khách hàng đã thay đổi. Hãy mở lại để cập nhật.');
+    writeCustomerChanges_(index,current.fields,values);
     return 'Đã lưu khách hàng ' + values.Ten_Cong_Ty;
   },{});
+}
+
+function customerIndex_(rows,code) {
+  const matches = rows.map((row,index) => ({row,index})).filter(item => String(item.row.Ma_KH).trim() === code);
+  if (matches.length !== 1) throw new Error('Cần đúng một khách hàng có mã ' + code + '. Hãy tải lại danh mục.');
+  return matches[0].index;
+}
+
+function writeCustomerChanges_(index,current,values) {
+  const changes = SCHEMA[TAB.customers].filter(key => key !== 'Ma_KH' && current[key] !== values[key]);
+  if (!changes.length) return;
+  const sheet = sheet_(TAB.customers), map = getHeaderIndexMap_(sheet);
+  for (const {start,width} of coreSpans_(changes.map(key => map[key]))) {
+    const keys = changes.filter(key => map[key] >= start && map[key] < start + width).sort((a,b) => map[a]-map[b]);
+    sheet.getRange(index+2,start,1,width).setValues([keys.map(key => literalCell_(values[key]))]);
+  }
 }
 
 function validateBuyer_(type, customer) {
