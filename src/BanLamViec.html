@@ -18,7 +18,7 @@
       }
       main {
         display: grid;
-        grid-template-columns: 165px 1fr;
+        grid-template-columns: 190px minmax(0, 1fr);
         min-height: 100vh;
       }
       nav {
@@ -154,6 +154,18 @@
       [hidden] {
         display: none !important;
       }
+      .page-head, .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .page-head { margin: 10px 0 16px; }
+      .toolbar label { flex: 1 1 240px; }
+      .card { overflow-wrap: anywhere; }
+      .card p { margin: 6px 0; }
+      :focus-visible { outline: 3px solid #247db1; outline-offset: 2px; }
       h3 {
         font-size: 16px;
         margin: 0 0 5px;
@@ -186,13 +198,16 @@
   <body>
     <main>
       <nav>
-        <strong>Hồng Thiên</strong> <button data-page="create">Tạo hợp đồng</button
-        ><button data-page="mine">Hợp đồng của tôi</button><button data-page="review">Chờ tôi duyệt</button
-        ><button data-page="approved">Hợp đồng đã duyệt</button><button data-page="settings">Thiết lập</button>
+        <strong>Hồng Thiên</strong>
+        <button data-page="manage">Quản lý hợp đồng</button>
+        <button data-page="customers">Khách hàng</button>
+        <button data-page="review">Chờ tôi duyệt</button>
+        <button data-page="approved">Hợp đồng đã duyệt</button>
+        <button data-page="settings">Thiết lập</button>
         <a id="viewBook" hidden target="_blank" rel="noopener" style="display:block;color:white;padding:10px">Xem sổ dữ liệu ↗</a>
       </nav>
       <article>
-        <h1 id="title">Hợp đồng</h1>
+        <header class="page-head"><h1 id="title">Quản lý hợp đồng</h1><button class="primary" id="createContract" hidden>+ Tạo hợp đồng</button></header>
         <p id="message" role="status" aria-live="polite"></p>
         <form id="form" hidden>
           <p id="seller" class="seller"></p>
@@ -264,7 +279,7 @@
           </div>
         </form>
         <div id="filters" class="grid" hidden>
-          <label>Tìm số hợp đồng hoặc khách hàng<input type="search" id="findContract" /></label>
+          <label>Số hợp đồng, khách hàng hoặc mã số thuế<input type="search" id="findContract" /></label>
           <label>Trạng thái<select id="stateFilter"><option value="">Tất cả trạng thái</option></select></label>
         </div><p id="noMatches" hidden>Không tìm thấy hồ sơ phù hợp.</p>
         <div id="list"></div>
@@ -309,6 +324,8 @@
       const titles = {
         create: 'Lập hợp đồng',
         mine: 'Hợp đồng của tôi',
+        manage: 'Quản lý hợp đồng',
+        customers: 'Khách hàng',
         review: 'Chờ tôi duyệt',
         approved: 'Hợp đồng đã duyệt',
         settings: 'Thiết lập'
@@ -389,6 +406,7 @@
         }
       }
       function section(id) {
+        $('createContract').hidden = !['manage','mine','review','approved'].includes(page);
         $('filters').hidden = true;
         $('noMatches').hidden = true;
         for (const k of ['form', 'settings']) $(k).hidden = k !== id;
@@ -433,7 +451,7 @@
         section('form');
         form.reset();
         fields.Loai_HD.disabled = false;
-        document.querySelector('details').open = false;
+        form.querySelector('details').open = false;
         meta = {
           token: data.token || crypto.randomUUID(),
           draftVersion: data.draftVersion || '',
@@ -453,7 +471,7 @@
           data.Uy_Quyen
         );
         if (data.Uy_Quyen && !data.So_Uy_Quyen) fields.So_Uy_Quyen.value = data.Uy_Quyen;
-        if (data.Thay_Doi) document.querySelector('details').open = true;
+        if (data.Thay_Doi) form.querySelector('details').open = true;
         fields.Loai_HD.disabled = !!meta.number;
         updateType();
         dirty = false;
@@ -467,10 +485,15 @@
           ...meta
         };
       }
+      function displayValue(key, value) {
+        if (key.startsWith('Ngay_') && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split('-').reverse().join('/');
+        if (key === 'Gia_Tri' && Number.isFinite(Number(value))) return Number(value).toLocaleString('vi-VN');
+        return value;
+      }
       function markNav() {
         document
           .querySelectorAll('nav button')
-          .forEach((b) => b.setAttribute('aria-current', String(b.dataset.page === page)));
+          .forEach((b) => b.setAttribute('aria-current', String(b.dataset.page === (page === 'mine' ? 'manage' : page))));
       }
       function filterContracts() {
         const query = $('findContract').value.toLocaleLowerCase('vi').trim();
@@ -499,19 +522,85 @@
         f.reviewers.value = config.reviewers;
         for (const input of $('sellerFields').querySelectorAll('input')) input.value = config.sellerFields?.[input.name] || '';
       }
+      function directory() {
+        const box = $('list');
+        const toolbar = el('div','');
+        toolbar.className = 'toolbar';
+        const label = el('label','Tìm theo tên, mã khách hàng hoặc mã số thuế');
+        const query = document.createElement('input');
+        query.type = 'search';
+        label.append(query);
+        toolbar.append(label);
+        addButton(toolbar,'Thêm khách hàng', () => customerEditor());
+        const results = el('div','');
+        box.replaceChildren(toolbar, results);
+        function render() {
+          results.replaceChildren();
+          const term = query.value.trim().toLocaleLowerCase('vi');
+          for (const customer of catalog.customers) {
+            if (![customer.name,customer.code,customer.tax].some(v => v.toLocaleLowerCase('vi').includes(term))) continue;
+            const card = el('section','');
+            card.className = 'card';
+            card.append(el('h3',customer.name),el('p',[customer.code, customer.tax && 'MST ' + customer.tax, customer.address].filter(Boolean).join(' · ')));
+            const actions = el('div','');
+            actions.className = 'actions';
+            addButton(actions,'Lập hợp đồng', () => edit({Ma_KH:customer.code}));
+            addButton(actions,'Sửa khách hàng', () => customerEditor(customer));
+            card.append(actions);
+            results.append(card);
+          }
+          if (!results.childElementCount) results.append(el('p',term ? 'Không tìm thấy khách hàng phù hợp.' : 'Danh mục chưa có khách hàng.'));
+        }
+        query.oninput = render;
+        render();
+      }
+      function customerEditor(customer) {
+        $('message').textContent = '';
+        $('title').textContent = customer ? 'Sửa khách hàng' : 'Thêm khách hàng';
+        const editor = document.createElement('form');
+        const grid = $('newCustomer').cloneNode(true);
+        grid.removeAttribute('id');
+        grid.hidden = false;
+        for (const field of grid.querySelectorAll('input')) {
+          field.disabled = false;
+          field.required = ['Ten_Cong_Ty','Dia_Chi'].includes(field.name);
+          field.value = customer?.fields[field.name] || '';
+        }
+        const actions = el('div','');
+        actions.className = 'actions';
+        const save = el('button','Lưu khách hàng');
+        save.className = 'primary';
+        actions.append(save);
+        addButton(actions,'Quay lại danh mục', () => show('customers'));
+        editor.append(grid,actions);
+        $('list').replaceChildren(editor);
+        editor.oninput = () => { dirty = true; };
+        const token = crypto.randomUUID();
+        editor.onsubmit = event => {
+          event.preventDefault();
+          task(async () => {
+            const message = await api('luuKhachHang',Object.fromEntries(new FormData(editor)),customer?.code || '',customer?.version || '',token);
+            dirty = false;
+            await show('customers');
+            $('message').textContent = message;
+          });
+        };
+        grid.querySelector('input').focus();
+      }
       async function show(mode) {
-        if (dirty && !(await ask('Rời phiếu và bỏ các thay đổi chưa lưu?'))) return;
+        if (dirty && !(await ask('Rời trang và bỏ các thay đổi chưa lưu?'))) return;
         dirty = false;
         page = mode;
         markNav();
         $('title').textContent = titles[mode];
         $('message').textContent = '';
         section('');
-        if (refreshCatalog) {
+        if (refreshCatalog || mode === 'customers') {
           catalog = await api('layDanhMucPhieu');
           loadTypes();
           refreshCatalog = false;
         }
+        if (mode === 'customers') return directory();
         if (mode === 'create') {
           edit();
           return;
@@ -522,6 +611,7 @@
           return;
         }
         const data = await api('danhSachHoSo', mode);
+        const taxByCode = new Map(catalog.customers.map(c => [c.code,c.tax]));
         for (const d of data.drafts) {
           const card = el('section', '');
           card.className = 'card';
@@ -535,7 +625,7 @@
                   'Chưa chọn khách')
             )
           );
-          card.dataset.search = [d.number,d.Ma_KH,d.MST,card.querySelector('h3').textContent].join(' ').toLocaleLowerCase('vi');
+          card.dataset.search = [d.number,d.Ma_KH,d.MST,taxByCode.get(d.Ma_KH),card.querySelector('h3').textContent].join(' ').toLocaleLowerCase('vi');
           card.dataset.state = 'Nháp';
           addButton(card, 'Mở bản nháp', () => edit(d));
           addButton(card, 'Xóa nháp', async () => {
@@ -560,7 +650,7 @@
                 r.fields.Loai_HD,
                 r.fields.Nguoi_Phu_Trach,
                 r.fields.Thay_Doi && 'Thỏa thuận riêng: ' + r.fields.Thay_Doi,
-                r.fields.Ngay_Ra_Soat && 'Rà soát: ' + r.fields.Ngay_Ra_Soat,
+                r.fields.Ngay_Ra_Soat && 'Rà soát: ' + displayValue('Ngay_Ra_Soat',r.fields.Ngay_Ra_Soat),
                 r.reason && 'Lý do trả: ' + r.reason,
                 r.endedBy && 'Căn cứ chấm dứt: ' + r.endedBy
               ]
@@ -568,7 +658,7 @@
                 .join(' · ')
             )
           );
-          card.dataset.search = [r.number,r.name,r.fields.Ma_KH].join(' ').toLocaleLowerCase('vi');
+          card.dataset.search = [r.number,r.name,r.fields.Ma_KH,taxByCode.get(r.fields.Ma_KH)].join(' ').toLocaleLowerCase('vi');
           card.dataset.state = r.state;
           fileLink(card, 'Xem PDF trình duyệt', r.pdf);
           if (r.approvedDoc) {
@@ -578,6 +668,25 @@
           const actions = el('div', '');
           actions.className = 'actions';
           card.append(actions);
+          const details = el('div', '');
+          details.hidden = true;
+          card.append(details);
+          addButton(actions, 'Chi tiết và lịch sử', async () => {
+            if (!details.hidden) { details.hidden = true; return; }
+            const history = await api('lichSuHoSo', r.number);
+            details.replaceChildren(el('h4','Thông tin hợp đồng'));
+            for (const [key,label] of Object.entries({
+              Ngay_Ky:'Ngày ký', Ngay_Hieu_Luc:'Hiệu lực từ', Ngay_Het_Han:'Hết hạn',
+              Gia_Tri:'Giá trị (VND)', Noi_Dung_HD:'Nội dung', Dieu_Khoan_Thanh_Toan:'Thanh toán', Ghi_Chu:'Ghi chú'
+            })) {
+              const value = r.fields[key];
+              if (value) details.append(el('p', label + ' · ' + displayValue(key,value)));
+            }
+            details.append(el('h4','Lịch sử xử lý'));
+            if (!history.length) details.append(el('p','Chưa có nhật ký cho hồ sơ này.'));
+            for (const h of history) details.append(el('p',[h.time,h.actor,h.action,h.result].filter(Boolean).join(' · ')));
+            details.hidden = false;
+          });
           async function decide(action, detail = '') {
             await api('xuLyHoSo', r.number, r.version, action, detail);
             await show(mode);
@@ -587,7 +696,7 @@
               if (await ask('Xác nhận hai bên đã ký ' + r.number + '?')) await decide('sign');
             });
           }
-          if (mode === 'review') {
+          if (catalog.approver && r.state === 'Chờ duyệt' && ['review','manage'].includes(mode)) {
             addButton(actions, 'Phê duyệt', async () => {
               if (await ask('Duyệt ' + r.number + '?')) await decide('approve');
             });
@@ -595,12 +704,12 @@
               const reason = await ask('Trả lại ' + r.number, 'Lý do trả');
               if (reason?.trim()) await decide('return', reason);
             });
-          } else if (r.state === 'Nháp') {
+          } else if (r.state === 'Nháp' && r.mine !== false) {
             addButton(actions, 'Sửa và trình duyệt', () =>
               edit({ ...r.fields, number: r.number, version: r.version })
             );
           } else if (
-            mode === 'mine' && catalog.frameworkTypes.includes(r.fields.Loai_HD) &&
+            ['manage','mine'].includes(mode) && r.mine !== false && catalog.frameworkTypes.includes(r.fields.Loai_HD) &&
             ['Đã duyệt', 'Đã ký'].includes(r.state)
           ) {
             addButton(actions, 'Hẹn rà soát', async () => {
@@ -624,6 +733,7 @@
       document
         .querySelectorAll('nav button')
         .forEach((b) => (b.onclick = () => task(() => show(b.dataset.page))));
+      $('createContract').onclick = () => task(() => show('create'));
       form.oninput = () => (dirty = true);
       $('byProxy').onchange = toggleAuthority;
       fields.Loai_HD.onchange = updateType;
@@ -633,7 +743,7 @@
         task(async () => {
           meta.draftVersion = await api('luuNhapCaNhan', payload());
           dirty = false;
-          $('message').textContent = 'Đã lưu bản nháp vào Hợp đồng của tôi.';
+          $('message').textContent = 'Đã lưu bản nháp vào Quản lý hợp đồng.';
           $('message').scrollIntoView();
         });
       form.onsubmit = (e) => {

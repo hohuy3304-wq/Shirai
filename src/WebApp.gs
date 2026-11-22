@@ -36,7 +36,7 @@ function doGet(e) {
       .addMetaTag('viewport','width=device-width, initial-scale=1');
   }
   contractBook_().getName(); // Kiểm tra quyền đọc sổ của chính người đang mở app.
-  return deskPage_(e && e.parameter && e.parameter.page === 'settings' && contractBook_().getOwner().getEmail().toLowerCase() === activeEmail_() ? 'settings' : 'create');
+  return deskPage_(e && e.parameter && e.parameter.page === 'settings' && contractBook_().getOwner().getEmail().toLowerCase() === activeEmail_() ? 'settings' : 'manage');
 }
 
 function moWebApp() {

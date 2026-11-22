@@ -76,7 +76,7 @@ function readDraft_(form) {
     : PropertiesService.getUserProperties().getProperty(draftKey_(form.token));
   const draft = raw ? JSON.parse(raw) : null;
   if ((draft ? draft.draftVersion : '') !== (form.draftVersion || ''))
-    throw new Error('Bản nháp đã thay đổi. Hãy mở lại từ Hợp đồng của tôi.');
+    throw new Error('Bản nháp đã thay đổi. Hãy mở lại từ Quản lý hợp đồng.');
   return {draft, row};
 }
 
@@ -132,9 +132,12 @@ function danhSachHoSo(mode) {
   const email = activeEmail_(),
     review = mode === 'review';
   if (review && !isApprover_(email)) throw new Error('Tài khoản của bạn chưa thuộc NGUOI_DUYET.');
-  const local = mode === 'mine' ? myDrafts_(email) : [];
+  const manage = mode === 'manage';
+  const approver = manage && isApprover_(email);
+  const local = (manage || mode === 'mine') ? myDrafts_(email) : [];
   const rows = records_(TAB.contracts).filter(r => {
     if (!r.So_HD) return false;
+    if (manage && (r.Nguoi_Duyet === email || (approver && r.Trang_Thai === ST.pending))) return true;
     if (review) return r.Trang_Thai === ST.pending;
     if (mode === 'approved') {
       const archived = !!r.Link_Docs_Da_Duyet || [ST.approved,ST.signed,ST.expired,ST.ended].includes(r.Trang_Thai);
@@ -170,6 +173,7 @@ function danhSachHoSo(mode) {
         }
         return {
           fields,
+          mine: mine_(r,email),
           number: String(r.So_HD),
           version: revision_(r),
           state: String(r.Trang_Thai),
@@ -199,7 +203,7 @@ function guiPhieuDeDuyet(form) {
       readDraft_(form);
       if (r.Trang_Thai !== ST.draft) throw new Error('Hồ sơ phải ở trạng thái nháp để gửi duyệt.');
       if (!form.number && Number(r.Phien_Trinh) > 0)
-        throw new Error('Phiếu đã được trình. Hãy mở bản hiện tại trong Hợp đồng của tôi.');
+        throw new Error('Phiếu đã được trình. Hãy mở bản hiện tại trong Quản lý hợp đồng.');
       if (r.So_HD) checkFileIdle_(row);
       if (form.number) checkRevision_(r, form.version);
       const fields = formData_({ ...form, Ma_KH: form.Ma_KH || 'KH-' + form.token });
@@ -326,4 +330,14 @@ function thietLapHoSo(link, folder, type, reviewers, seller) {
     }
     return 'Đã lưu thiết lập.';
   },{});
+}
+
+function lichSuHoSo(number) {
+  const r = dossierAt_(number).data, email = activeEmail_();
+  if (!(mine_(r,email) || r.Nguoi_Duyet === email || (r.Trang_Thai === ST.pending && isApprover_(email))))
+    throw new Error('Bạn chưa có quyền xem hồ sơ này.');
+  return records_(TAB.log).filter(log=>String(log.So_HD) === String(number)).reverse().map(log=>({
+    time:validDate_(log.Thoi_Gian) ? Utilities.formatDate(log.Thoi_Gian,TZ,'dd/MM/yyyy HH:mm') : String(log.Thoi_Gian),
+    actor:String(log.Nguoi_Dung), action:String(log.Hanh_Dong), result:String(log.Ket_Qua)
+  }));
 }

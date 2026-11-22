@@ -91,7 +91,7 @@ function createContract_(ctx, newEdition) {
   }
   const nameCell = ctx.sheet.getRange(ctx.row, ctx.map.Ten_KH);
   const customerName = String(kh.Ten_Cong_Ty).trim();
-  if (nameCell.getFormula()) row.Ten_KH = customerName;
+  if (!newEdition && nameCell.getFormula()) row.Ten_KH = customerName;
   else setField_(ctx, 'Ten_KH', customerName);
   setField_(ctx, 'Gia_Tri_Bang_Chu', row.Gia_Tri === '' ? '' : docSoThanhChu(row.Gia_Tri));
   if (!row.Ngay_Tao) setField_(ctx, 'Ngay_Tao', new Date(Math.floor(Date.now()/1000)*1000));

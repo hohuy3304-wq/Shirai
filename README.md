@@ -2,6 +2,8 @@
 
 Nhân viên mở đường dẫn web app để lập và theo dõi hồ sơ. Google Sheets lưu khách hàng, bản nháp, hợp đồng và nhật ký. Google Docs lưu mẫu và bản đã duyệt. Menu **Hợp đồng** trong Sheet vẫn mở được cùng giao diện.
 
+Sau khi thiết lập lần đầu, mở link `/exec` để vào **Quản lý hợp đồng**. Tìm theo số hợp đồng, khách hàng hoặc mã số thuế, lọc theo trạng thái, chọn **Chi tiết và lịch sử** để xem quá trình xử lý. Bấm **+ Tạo hợp đồng** để lập phiếu. Trong **Khách hàng**, bạn có thể thêm, tìm, cập nhật thông tin hoặc lập hợp đồng ngay cho khách đã chọn.
+
 ## Đưa bản mới vào Sheet đang dùng
 
 1. Trên Windows, tải ZIP từ **Code → Download ZIP** của GitHub, chọn **Giải nén tất cả** và mở **Cap-nhat.cmd** trong thư mục có `package.json`. Tệp dùng Node.js 22 trở lên, tự cài clasp và mở đăng nhập Google khi cần. Kiểm tra đúng dự án được gợi ý hoặc dán URL trình chỉnh sửa Apps Script của Sheet. Sau khi đồng bộ, công cụ đọc lại mã trên Google trong một thư mục tạm và thông báo kết quả. Với môi trường đã cấu hình clasp, bạn cũng có thể dùng `npx clasp -P .clasp.local.json push`.
@@ -22,12 +24,12 @@ Trên Sheet và thư mục thử, tài khoản A lưu nháp, mở lại và gử
 | --- | --- |
 | Người lập | Trên web app chọn **Tạo hợp đồng**. Tìm bên mua theo tên, mã hoặc MST. Có thể thêm khách hàng ngay trên phiếu. Kiểm tra tên pháp nhân, MST, địa chỉ, người đại diện và chức vụ. |
 | Người lập | Điền ngày ký và người phụ trách. Ngày ký cũng là ngày hiệu lực. Nếu ký theo ủy quyền, điền số và ngày giấy ủy quyền. Điền ngày rà soát nếu muốn nhận nhắc. Giá trị tổng có thể để trống khi đơn giá theo từng đơn hàng. |
-| Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Hợp đồng của tôi**. Dữ liệu phiếu được lưu vào tab **BanNhap**. |
-| Người lập | **Tạo và gửi duyệt** cấp số, lưu Docs và PDF, chuyển sang **Chờ duyệt**. Nếu bị trả về, mở **Hợp đồng của tôi → Sửa và trình duyệt**, sửa theo lý do rồi gửi lại. Số hợp đồng giữ nguyên và mỗi lần trình có PDF riêng. |
+| Người lập | Mở **Thay đổi so với mẫu** nếu hai bên có thỏa thuận riêng. **Lưu nháp** giữ cả phiếu nhập dở theo tài khoản. Mở lại hoặc xóa trong **Quản lý hợp đồng**. Dữ liệu phiếu được lưu vào tab **BanNhap**. |
+| Người lập | **Tạo và gửi duyệt** cấp số, lưu Docs và PDF, chuyển sang **Chờ duyệt**. Nếu bị trả về, mở **Quản lý hợp đồng → Sửa và trình duyệt**, sửa theo lý do rồi gửi lại. Số hợp đồng giữ nguyên và mỗi lần trình có PDF riêng. |
 | Người duyệt | Mở **Chờ tôi duyệt**, xem PDF của lần trình, bấm **Phê duyệt** hoặc **Trả về** và ghi lý do. Mỗi lần trình ghi số phiên bản và liên kết PDF vào **NhatKy**. Nếu hồ sơ thay đổi trong khi đang mở, tải lại danh sách trước khi thao tác. |
-| Người phụ trách hoặc người lập | Với HĐNT đã duyệt hoặc đã ký, mở **Hợp đồng của tôi** để hẹn ngày rà soát mới hoặc ghi căn cứ chấm dứt. HĐNT tự gia hạn theo mẫu. Đến mốc rà soát, hệ thống nhắc theo lịch đã cài và giữ trạng thái hiện tại. |
+| Người phụ trách hoặc người lập | Với HĐNT đã duyệt hoặc đã ký, mở **Quản lý hợp đồng** để hẹn ngày rà soát mới hoặc ghi căn cứ chấm dứt. HĐNT tự gia hạn theo mẫu. Đến mốc rà soát, hệ thống nhắc theo lịch đã cài và giữ trạng thái hiện tại. |
 
-**HopDong** là sổ chung của nhóm. Danh sách **Hợp đồng của tôi** lọc theo người tạo hoặc phụ trách. Người có quyền sửa Sheet có thể mở sổ chung và bound script. Danh sách nháp lọc theo email người lập. Người có quyền truy cập Sheet có thể xem tab **BanNhap**. Bản nháp từ phiên bản cũ vẫn mở được bằng tài khoản đã tạo và được chuyển vào Sheet khi lưu lại.
+**HopDong** là sổ chung của nhóm. Trang **Quản lý hợp đồng** hiển thị hồ sơ do bạn tạo hoặc phụ trách, hồ sơ bạn đã duyệt và các hồ sơ đang chờ nếu bạn có quyền duyệt. Người có quyền sửa Sheet có thể mở sổ chung và bound script. Danh sách nháp lọc theo email người lập. Người có quyền truy cập Sheet có thể xem tab **BanNhap**. Bản nháp từ phiên bản cũ vẫn mở được bằng tài khoản đã tạo và được chuyển vào Sheet khi lưu lại.
 
 ## Cài vào Google Workspace
 

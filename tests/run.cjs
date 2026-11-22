@@ -383,9 +383,12 @@ test('Trình, trả về, trình lần hai và duyệt đúng bản PDF khi nhi�
   const v1=c.revision_(ctx.data);
   actor='other@example.com';
   assert.equal(c.danhSachHoSo('mine').rows.length,0);
+  assert.equal(c.danhSachHoSo('manage').rows.length,0);
+  assert.throws(()=>c.lichSuHoSo(result.number),/quyền xem/);
   assert.throws(()=>c.guiPhieuDeDuyet(first),/thuộc người phụ trách khác/);
   assert.throws(()=>c.xuLyHoSo(result.number,v1,'approve',''),/quyền duyệt/);
   actor=reviewer;
+  assert.equal(c.danhSachHoSo('manage').rows[0].mine,false);
   assert.equal(c.danhSachHoSo('review').rows[0].pdf,exported[0]);
   assert.throws(()=>c.xuLyHoSo(result.number,v1,'return',''),/lý do/);
   c.xuLyHoSo(result.number,v1,'return','Bổ sung thỏa thuận');
@@ -422,9 +425,10 @@ test('Trình, trả về, trình lần hai và duyệt đúng bản PDF khi nhi�
 test('Web app mở sổ theo ID đã nối, dùng quyền người truy cập và giữ được menu Sheet', () => {
   const props=properties(), book={getName:()=>'Sổ hợp đồng'}, opened=[];
   let email='nhanvien@example.com',effective=email,active=null;
+  let displayedPage;
   const output={setTitle(){return this;},addMetaTag(){return this;}};
   const services={
-    HtmlService:{createHtmlOutput:text=>text,createTemplateFromFile:name=>{assert.equal(name,'BanLamViec');return {evaluate:()=>output};}},
+    HtmlService:{createHtmlOutput:text=>text,createTemplateFromFile:name=>{assert.equal(name,'BanLamViec');return {evaluate(){displayedPage=this.startPage;return output;}};}},
     Session:{getActiveUser:()=>({getEmail:()=>email}),getEffectiveUser:()=>({getEmail:()=>effective})},
     PropertiesService:{getScriptProperties:()=>props},SpreadsheetApp:{getActiveSpreadsheet:()=>active,
       openById:id=>{opened.push(id);if(email==='unknown@example.com')throw Error('Không có quyền');return book;}}
@@ -432,6 +436,7 @@ test('Web app mở sổ theo ID đã nối, dùng quyền người truy cập v�
   assert.match(runtime(services).doGet(),/chờ tài khoản quản trị/);
   props.setProperty('hopdong/spreadsheet','sheet-authorized');
   assert.equal(runtime(services).doGet({parameter:{id:'khac'}}),output);
+  assert.equal(displayedPage,'manage');
   assert.deepEqual(opened,['sheet-authorized']);
   effective='owner@example.com';
   assert.throws(()=>runtime(services).contractBook_(),/người dùng truy cập/);
@@ -568,4 +573,42 @@ test('Thiết lập ngay trên web: chỉ quản trị viên, dùng lại sổ c
   assert.throws(()=>c.khoiTaoTuWeb('existing',link,''),/đã có sổ/);
   props.deleteProperty('hopdong/spreadsheet');
   assert.match(c.khoiTaoTuWeb('existing',link,''),/page=settings/);
+});
+
+
+test('Danh mục khách hàng giữ mã, số 0 đầu, cột riêng và phát hiện sửa đồng thời', () => {
+  const c = runtime();
+  const keys = ['Ma_KH','Ten_Cong_Ty','Extra','Dia_Chi','MST','Nguoi_Dai_Dien','Chuc_Vu','SDT','Email','Tai_Khoan_NH'];
+  const map = Object.fromEntries(keys.map((key,i) => [key,i+1]));
+  const rows = [];
+  const sheet = {
+    getLastColumn: () => keys.length,
+    appendRow: row => rows.push(Array.from(row)),
+    getRange: (row,col,height,width) => ({
+      setValues(values) {
+        assert.equal(height,1);
+        rows[row-2].splice(col-1,width,...values[0]);
+      }
+    })
+  };
+  Object.assign(c,{
+    activeEmail_: () => 'staff@example.com', withLock_: fn => fn(), appendLog_() {},
+    sheet_: () => sheet, getHeaderIndexMap_: () => map,
+    records_: () => rows.map(row => c.record_(row,map))
+  });
+  const token = crypto.randomUUID(), form = {Ten_Cong_Ty:'Minh An',Dia_Chi:'Huế',MST:'0012'};
+  c.luuKhachHang(form,'','',token);
+  c.luuKhachHang(form,'','',token);
+  assert.equal(rows.length,1);
+  assert.throws(() => c.luuKhachHang(form,'','',crypto.randomUUID()),/Mã số thuế/);
+  rows[0][2] = 'giữ nguyên';
+  const original = c.customerCard_(c.records_()[0]);
+  c.luuKhachHang({...form,Ten_Cong_Ty:'Minh An mới',Dia_Chi:'Đà Nẵng'},original.code,original.version,'');
+  assert.throws(() => c.luuKhachHang(form,original.code,original.version,''),/đã thay đổi/);
+  const saved = c.customerCard_(c.records_()[0]);
+  assert.equal(saved.name,'Minh An mới');
+  assert.equal(saved.address,'Đà Nẵng');
+  assert.equal(saved.tax,'0012');
+  assert.equal(saved.code,original.code);
+  assert.equal(rows[0][2],'giữ nguyên');
 });

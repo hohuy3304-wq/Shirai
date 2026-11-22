@@ -1,3 +1,5 @@
 node_modules/
 .clasprc*.json
 .clasp.local.json
+
+.agents/skills/impeccable/scripts/bin/
