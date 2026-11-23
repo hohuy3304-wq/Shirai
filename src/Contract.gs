@@ -98,7 +98,13 @@ function createContract_(ctx, newEdition) {
   if (!row.Nguoi_Tao) setField_(ctx, 'Nguoi_Tao', email);
   setField_(ctx, 'Trang_Thai', ST.draft);
   const name = row.So_HD + ' - ' + row.Ten_KH + (newEdition ? ' - Trình ' + (Number(row.Phien_Trinh || 0)+1) : '');
-  const map = placeholders_(row, kh, cfg);
+  // Sheets có thể chuẩn hóa ngày, số và văn bản khi ghi. Dùng cùng bản
+  // đã ghi để điền Docs và kiểm tra sửa đổi sau khi xuất.
+  if (newEdition) {
+    SpreadsheetApp.flush();
+    ctx.data = rowAt_(ctx.sheet, ctx.row).data;
+  }
+  const map = placeholders_(ctx.data, kh, cfg);
   reserveFileJob_(ctx);
   return () => {
     let proof;
