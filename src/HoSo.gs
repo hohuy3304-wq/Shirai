@@ -63,17 +63,13 @@ function draftKey_(token) {
   return 'nhap/' + token;
 }
 
-function draftRow_(email, token) {
-  draftKey_(token);
-  return records_(TAB.drafts).findIndex(r => r.Nguoi_Tao === email && r.Ma_Phieu === token) + 2;
-}
-
 function readDraft_(form) {
+  const key = draftKey_(form.token);
   const email = activeEmail_();
-  const row = draftRow_(email, form.token);
-  const s = sheet_(TAB.drafts);
-  const raw = row > 1 ? s.getRange(row, getHeaderIndexMap_(s).Du_Lieu).getValue()
-    : PropertiesService.getUserProperties().getProperty(draftKey_(form.token));
+  const entries = records_(TAB.drafts);
+  const index = entries.findIndex(r => r.Nguoi_Tao === email && r.Ma_Phieu === form.token);
+  const row = index + 2;
+  const raw = index >= 0 ? entries[index].Du_Lieu : PropertiesService.getUserProperties().getProperty(key);
   const draft = raw ? JSON.parse(raw) : null;
   if ((draft ? draft.draftVersion : '') !== (form.draftVersion || ''))
     throw new Error('Bản nháp đã thay đổi. Hãy mở lại từ Quản lý hợp đồng.');

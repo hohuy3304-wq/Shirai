@@ -7,6 +7,12 @@ function openDesk_(page) {
   );
 }
 
+function moBanLamViec(page) {
+  const catalog = layDanhMucPhieu();
+  const list = ['manage','mine','review','approved'].includes(page) ? danhSachHoSo(page) : null;
+  return {catalog, list};
+}
+
 function layDanhMucPhieu() {
   const cfg = getConfig();
   const email = activeEmail_();

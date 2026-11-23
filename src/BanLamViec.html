@@ -478,7 +478,9 @@
         const term = searchKey(buyerSearch.value);
         closeBuyerOptions();
         buyerOptions.replaceChildren();
-        for (const c of catalog.customers.filter(c => matchesBuyer(c,term)).slice(0,40)) {
+        for (const c of catalog.customers) {
+          if (buyerOptions.childElementCount >= 40) break;
+          if (!matchesBuyer(c,term)) continue;
           const option = el('div',buyerLabel(c));
           option.id = 'buyer-option-' + buyerOptions.childElementCount;
           option.setAttribute('role','option');
@@ -719,7 +721,7 @@
         };
         grid.querySelector('input').focus();
       }
-      async function show(mode) {
+      async function show(mode, initialList) {
         if (dirty && !(await ask('Rời trang và bỏ các thay đổi chưa lưu?'))) return;
         dirty = false;
         page = mode;
@@ -742,7 +744,7 @@
           setupForm();
           return;
         }
-        const data = await api('danhSachHoSo', mode);
+        const data = initialList || await api('danhSachHoSo', mode);
         const taxByCode = new Map(catalog.customers.map(c => [c.code,c.tax]));
         for (const d of data.drafts) {
           const card = el('section', '');
@@ -930,9 +932,11 @@
         document.querySelector('[data-page="settings"]').hidden = !catalog.owner;
       }
       task(async () => {
-        catalog = await api('layDanhMucPhieu');
+        const initialPage = '<?!= startPage ?>';
+        const initial = await api('moBanLamViec', initialPage);
+        catalog = initial.catalog;
         loadTypes();
-        await show('<?!= startPage ?>');
+        await show(initialPage, initial.list);
       });
     </script>
   </body>
